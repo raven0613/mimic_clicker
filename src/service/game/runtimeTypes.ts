@@ -3,6 +3,7 @@ import type { Container, Sprite, Texture } from 'pixi.js'
 import type { MimicId, RoundResult, Vector2 } from '../../types/game'
 import type { HudSnapshot } from '../../store/gameStore'
 import type { JackpotLifecycle } from '../combat/combat'
+import type { MimicCrackVisual } from './damage/mimicCrackVisual'
 
 export interface RuntimeCallbacks {
   onHudSnapshot: (snapshot: HudSnapshot) => void
@@ -28,6 +29,8 @@ export interface RuntimeMimicEntity {
   sprite: Sprite
   flashSprite: Sprite
   health: number | null
+  maximumHealth: number | null
+  crackVisual: MimicCrackVisual | null
   logicalX: number
   logicalY: number
   downwardSpeedPixelsPerSecond: number

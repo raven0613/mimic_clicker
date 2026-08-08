@@ -21,6 +21,8 @@ function createEscapingJackpotEntity(): RuntimeMimicEntity {
     sprite,
     flashSprite,
     health: null,
+    maximumHealth: null,
+    crackVisual: null,
     logicalX: 0,
     logicalY: 0,
     downwardSpeedPixelsPerSecond: 0,

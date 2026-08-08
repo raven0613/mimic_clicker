@@ -10,7 +10,6 @@ import jackpotImageUrl from '../../assets/mimic/jackpot.png'
 import normalImageUrl from '../../assets/mimic/normal.png'
 import rare1ImageUrl from '../../assets/mimic/rare1.png'
 import rare2ImageUrl from '../../assets/mimic/rare2.png'
-import { animationConfig } from '../../configs/animationConfig'
 import { combatConfig } from '../../configs/combatConfig'
 import { interfaceConfig } from '../../configs/interfaceConfig'
 import { jackpotConfig } from '../../configs/jackpotConfig'
@@ -18,9 +17,10 @@ import { mimicConfigs } from '../../configs/mimicConfigs'
 import { roundConfig } from '../../configs/roundConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
 import type { JackpotOutcome, MimicId, RandomSource, RoundResult } from '../../types/game'
-import { applyDamage, advanceJackpotLifecycle } from '../combat/combat'
+import { advanceJackpotLifecycle } from '../combat/combat'
 import { calculateJackpotReward } from '../progression/progression'
 import { selectSpawnPosition, selectWeightedMimicId } from '../spawn/spawn'
+import { applyRuntimeMimicDamage, resetRuntimeMimicHealth } from './damage/runtimeMimicDamage'
 import { DeathEffectSystem } from './effects/DeathEffectSystem'
 import { loadCoinRewardTextures } from './reward/coinRewardTextures'
 import { createRuntimeMimicEntity } from './runtimeEntityFactory'
@@ -335,20 +335,17 @@ export class PixiGameRuntime {
   }
 
   private attackEntity(entity: RuntimeMimicEntity): void {
-    if (this.mode !== 'active' || this.roundEnding || entity.health === null) {
-      return
-    }
+    if (this.mode !== 'active' || this.roundEnding) return
+    if (entity.health === null || entity.maximumHealth === null) return
     if (entity.jackpotLifecycle?.phase !== 'chasing' && entity.role === 'jackpot') {
       return
     }
 
-    const damageResult = applyDamage(
-      entity.health,
+    const isDefeated = applyRuntimeMimicDamage(
+      entity,
       combatConfig.initialWeaponDamage,
     )
-    entity.health = damageResult.remainingHealth
-    entity.hitAnimationRemainingMs = animationConfig.hit.durationMs
-    if (!damageResult.isDefeated) return
+    if (!isDefeated) return
 
     if (entity.role === 'jackpotDisguise') {
       this.revealJackpot(entity)
@@ -374,7 +371,7 @@ export class PixiGameRuntime {
     entity.role = 'jackpot'
     entity.sprite.texture = this.textures.jackpot
     entity.flashSprite.texture = this.textures.jackpot
-    entity.health = jackpotConfig.maximumHealth
+    resetRuntimeMimicHealth(entity, jackpotConfig.maximumHealth)
     entity.container.zIndex = 100
     const directionRange =
       jackpotConfig.initialDirectionMaximumRadians -
