@@ -1,5 +1,6 @@
 export const coinRewardAnimationConfig = {
   spriteSheet: {
+    assetLabel: 'coin/gold_coin_flip',
     sourceWidthPixels: 721,
     sourceHeightPixels: 103,
     frameWidthPixels: 103,

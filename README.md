@@ -1,4 +1,4 @@
-# Mimic Breaker
+# Mimic Clicker
 
 桌面瀏覽器優先的 Active Clicker 原型。玩家在限時內敲碎由上往下流動的寶箱，找出偽裝 Jackpot，並在揭露後的短時間追逐中擊破它。
 

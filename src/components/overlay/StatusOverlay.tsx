@@ -14,7 +14,7 @@ export function StatusOverlay({
   return (
     <div className="overlay overlay--blocking">
       <section className="panel status-panel">
-        <p className="eyebrow">MIMIC BREAKER</p>
+        <p className="eyebrow">MIMIC Clicker</p>
         <h2>{title}</h2>
         <p>{message}</p>
         {actionLabel && onAction && (

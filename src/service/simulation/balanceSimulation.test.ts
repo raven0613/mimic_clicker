@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
+import { effectCardConfig } from '../../configs/effectCardConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import { runBalanceSimulation } from './balanceSimulation'
 
@@ -48,6 +49,17 @@ describe('fixed-seed balance simulation', () => {
     expect(report.stageAverageTotalIncome.allMimics).toBeGreaterThan(
       report.stageAverageTotalIncome.normalRare1,
     )
+    expect(
+      Math.abs(
+        report.effectCardMetrics.carrierRate -
+          effectCardConfig.thunder.carrierSpawnChance,
+      ),
+    ).toBeLessThanOrEqual(
+      balanceSimulationConfig.targets.effectCardCarrierRateTolerance,
+    )
+    expect(report.effectCardMetrics.strikesTriggered).toBeGreaterThan(0)
+    expect(report.effectCardMetrics.thunderDefeats).toBeGreaterThan(0)
+    expect(report.effectCardMetrics.maximumChainDepth).toBeGreaterThanOrEqual(1)
     expect(report.unfinishedRoundCount).toBe(0)
 
     console.info(report.summary)

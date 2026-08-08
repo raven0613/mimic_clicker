@@ -34,6 +34,8 @@ function createEscapingJackpotEntity(): RuntimeMimicEntity {
       lockedEscapeX: 0,
     },
     jackpotVelocity: { x: 0, y: 0 },
+    attachedCardFan: null,
+    effectCards: [],
   }
 }
 

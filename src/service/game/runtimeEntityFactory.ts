@@ -1,10 +1,14 @@
 import { Container, Rectangle, Sprite } from 'pixi.js'
 
+import { attachedCardFanContainsPoint } from './attachedCards/attachedCardLayout'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import { roundConfig } from '../../configs/roundConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
 import type { MimicId } from '../../types/game'
+import type { LoadedEffectCardTextures } from './assets/runtimeAssets'
 import { createMimicCrackVisual } from './damage/mimicCrackVisual'
+import type { EffectCardAssignment } from './effectCards/effectCardRules'
+import { createEffectCardFan } from './effectCards/effectCardVisual'
 import type { LoadedMimicTextures, RuntimeMimicEntity } from './runtimeTypes'
 
 interface CreateRuntimeMimicInput {
@@ -15,6 +19,8 @@ interface CreateRuntimeMimicInput {
   centerY: number
   fieldHeight: number
   textures: LoadedMimicTextures
+  effectCardTextures: LoadedEffectCardTextures
+  effectCardAssignments: readonly EffectCardAssignment[]
   onAttack: (entity: RuntimeMimicEntity) => void
 }
 
@@ -39,12 +45,13 @@ export function createRuntimeMimicEntity(
   container.addChild(flashSprite)
   container.position.set(input.centerX, input.centerY)
   container.zIndex = input.role === 'jackpotDisguise' ? 5 : 1
-  container.hitArea = new Rectangle(
+  const mimicHitArea = new Rectangle(
     -cardWidth / 2,
     -cardHeight / 2,
     cardWidth,
     cardHeight,
   )
+  container.hitArea = mimicHitArea
 
   const maximumHealth = input.decorative
     ? null
@@ -66,6 +73,19 @@ export function createRuntimeMimicEntity(
     hitAnimationRemainingMs: 0,
     jackpotLifecycle: null,
     jackpotVelocity: { x: 0, y: 0 },
+    attachedCardFan: null,
+    effectCards: [],
+  }
+  setRuntimeEffectCards(
+    entity,
+    input.effectCardAssignments,
+    input.effectCardTextures,
+  )
+  container.hitArea = {
+    contains: (x, y) =>
+      mimicHitArea.contains(x, y) ||
+      (entity.attachedCardFan !== null &&
+        attachedCardFanContainsPoint(x, y, entity.attachedCardFan.layout)),
   }
 
   if (input.decorative) {
@@ -76,4 +96,19 @@ export function createRuntimeMimicEntity(
     container.on('pointertap', () => input.onAttack(entity))
   }
   return entity
+}
+
+export function setRuntimeEffectCards(
+  entity: RuntimeMimicEntity,
+  assignments: readonly EffectCardAssignment[],
+  textures: LoadedEffectCardTextures,
+): void {
+  if (entity.attachedCardFan) {
+    entity.attachedCardFan.container.removeFromParent()
+    entity.attachedCardFan.container.destroy({ children: true })
+  }
+  const fan = createEffectCardFan(assignments, textures)
+  entity.attachedCardFan = fan
+  entity.effectCards = fan ? [...fan.cards] : []
+  if (fan) entity.container.addChild(fan.container)
 }

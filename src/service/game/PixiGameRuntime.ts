@@ -1,15 +1,6 @@
-import {
-  Application,
-  Assets,
-  Container,
-  type Texture,
-  type Ticker,
-} from 'pixi.js'
+import { Application, Container, type Ticker } from 'pixi.js'
 
-import jackpotImageUrl from '../../assets/mimic/jackpot.png'
-import normalImageUrl from '../../assets/mimic/normal.png'
-import rare1ImageUrl from '../../assets/mimic/rare1.png'
-import rare2ImageUrl from '../../assets/mimic/rare2.png'
+import { attachedCardConfig } from '../../configs/attachedCardConfig'
 import { combatConfig } from '../../configs/combatConfig'
 import { interfaceConfig } from '../../configs/interfaceConfig'
 import { jackpotConfig } from '../../configs/jackpotConfig'
@@ -20,9 +11,17 @@ import type { JackpotOutcome, MimicId, RandomSource, RoundResult } from '../../t
 import { advanceJackpotLifecycle } from '../combat/combat'
 import { calculateJackpotReward } from '../progression/progression'
 import { selectSpawnPosition, selectWeightedMimicId } from '../spawn/spawn'
-import { applyRuntimeMimicDamage, resetRuntimeMimicHealth } from './damage/runtimeMimicDamage'
+import { loadRuntimeAssets, type LoadedEffectCardTextures } from './assets/runtimeAssets'
+import { applyRuntimeMimicDamage } from './damage/runtimeMimicDamage'
 import { DeathEffectSystem } from './effects/DeathEffectSystem'
-import { loadCoinRewardTextures } from './reward/coinRewardTextures'
+import { EffectCardSystem } from './effectCards/EffectCardSystem'
+import { selectEffectCardAssignments } from './effectCards/effectCardRules'
+import {
+  activateRuntimeEffectCards,
+  assignJackpotRuntimeEffectCards,
+  updateRuntimeEffectCardHalos,
+} from './effectCards/runtimeEffectCards'
+import { revealRuntimeJackpot } from './jackpot/revealRuntimeJackpot'
 import { createRuntimeMimicEntity } from './runtimeEntityFactory'
 import { moveChasingJackpot, updateRuntimeEntityVisual } from './runtimeMovement'
 import type { LoadedMimicTextures, RuntimeCallbacks, RuntimeMimicEntity } from './runtimeTypes'
@@ -38,7 +37,9 @@ export class PixiGameRuntime {
   private readonly entities: RuntimeMimicEntity[] = []
   private initialized = false
   private textures: LoadedMimicTextures | null = null
+  private effectCardTextures: LoadedEffectCardTextures | null = null
   private deathEffectSystem: DeathEffectSystem | null = null
+  private effectCardSystem: EffectCardSystem | null = null
   private mode: RuntimeMode = 'idle'
   private mimicPool: MimicId[] = ['normal']
   private mainRemainingMs = 0
@@ -78,23 +79,25 @@ export class PixiGameRuntime {
     this.fieldLayer.eventMode = 'passive'
     this.app.stage.addChild(this.fieldLayer)
 
-    const [normal, rare1, rare2, jackpot, coinTextures] = await Promise.all([
-      Assets.load<Texture>(normalImageUrl),
-      Assets.load<Texture>(rare1ImageUrl),
-      Assets.load<Texture>(rare2ImageUrl),
-      Assets.load<Texture>(jackpotImageUrl),
-      loadCoinRewardTextures(),
-    ])
-    this.textures = { normal, rare1, rare2, jackpot }
+    const assets = await loadRuntimeAssets()
+    this.textures = assets.mimics
+    this.effectCardTextures = assets.effectCards
     this.deathEffectSystem = new DeathEffectSystem(
       this.app.stage,
       this.host,
-      coinTextures,
+      assets.coins,
       this.random,
       (reward) => {
         this.presentedRoundGold += reward
         this.emitHudSnapshot()
       },
+    )
+    this.effectCardSystem = new EffectCardSystem(
+      this.app.stage,
+      assets.effectCards,
+      this.random,
+      () => this.entities,
+      (entity, damage) => this.damageEntity(entity, damage),
     )
     this.app.ticker.add(this.update)
   }
@@ -140,9 +143,12 @@ export class PixiGameRuntime {
     if (!this.initialized) return
     this.app.ticker.remove(this.update)
     this.clearScene()
+    this.effectCardSystem?.destroy()
     this.deathEffectSystem?.destroy()
     this.app.destroy({ removeView: true }, { children: true })
     this.deathEffectSystem = null
+    this.effectCardSystem = null
+    this.effectCardTextures = null
     this.initialized = false
   }
 
@@ -156,6 +162,7 @@ export class PixiGameRuntime {
 
     if (this.mode === 'active') {
       this.updateActiveRound(deltaMs)
+      this.effectCardSystem?.update(deltaMs)
     } else {
       this.updateDecorativeMode(deltaMs)
     }
@@ -230,7 +237,7 @@ export class PixiGameRuntime {
     role: RuntimeMimicEntity['role'],
     decorative: boolean,
   ): boolean {
-    if (!this.textures || this.app.screen.width <= 0) {
+    if (!this.textures || !this.effectCardTextures || this.app.screen.width <= 0) {
       return false
     }
     const cardWidth = spawnConfig.cardWidthPixels
@@ -272,6 +279,12 @@ export class PixiGameRuntime {
       centerY,
       fieldHeight: this.app.screen.height,
       textures: this.textures,
+      effectCardTextures: this.effectCardTextures,
+      effectCardAssignments: selectEffectCardAssignments(
+        decorative,
+        attachedCardConfig.capacity.byMimic[mimicId],
+        this.random,
+      ),
       onAttack: (attackedEntity) => this.attackEntity(attackedEntity),
     })
 
@@ -293,6 +306,7 @@ export class PixiGameRuntime {
         }
       }
       updateRuntimeEntityVisual(entity, deltaMs, this.roundElapsedMs)
+      updateRuntimeEffectCardHalos(entity, this.roundElapsedMs)
     }
   }
 
@@ -335,18 +349,21 @@ export class PixiGameRuntime {
   }
 
   private attackEntity(entity: RuntimeMimicEntity): void {
+    this.damageEntity(entity, combatConfig.initialWeaponDamage)
+  }
+
+  private damageEntity(entity: RuntimeMimicEntity, damage: number): void {
     if (this.mode !== 'active' || this.roundEnding) return
+    if (!this.entities.includes(entity)) return
     if (entity.health === null || entity.maximumHealth === null) return
     if (entity.jackpotLifecycle?.phase !== 'chasing' && entity.role === 'jackpot') {
       return
     }
 
-    const isDefeated = applyRuntimeMimicDamage(
-      entity,
-      combatConfig.initialWeaponDamage,
-    )
+    const isDefeated = applyRuntimeMimicDamage(entity, damage)
     if (!isDefeated) return
 
+    activateRuntimeEffectCards(entity, this.effectCardSystem)
     if (entity.role === 'jackpotDisguise') {
       this.revealJackpot(entity)
     } else if (entity.role === 'jackpot') {
@@ -368,28 +385,13 @@ export class PixiGameRuntime {
 
   private revealJackpot(entity: RuntimeMimicEntity): void {
     if (!this.textures) return
-    entity.role = 'jackpot'
-    entity.sprite.texture = this.textures.jackpot
-    entity.flashSprite.texture = this.textures.jackpot
-    resetRuntimeMimicHealth(entity, jackpotConfig.maximumHealth)
-    entity.container.zIndex = 100
-    const directionRange =
-      jackpotConfig.initialDirectionMaximumRadians -
-      jackpotConfig.initialDirectionMinimumRadians
-    const angle = jackpotConfig.initialDirectionMinimumRadians + this.random() * directionRange
-    const horizontalDirection = this.random() < 0.5 ? -1 : 1
-    entity.jackpotVelocity = {
-      x:
-        Math.cos(angle) *
-        jackpotConfig.chaseSpeedPixelsPerSecond *
-        horizontalDirection,
-      y: Math.sin(angle) * jackpotConfig.chaseSpeedPixelsPerSecond,
-    }
-    entity.jackpotLifecycle = {
-      phase: 'chasing',
-      remainingChaseMs: jackpotConfig.chaseDurationMs,
-      phaseElapsedMs: 0,
-      lockedEscapeX: null,
+    revealRuntimeJackpot(entity, this.textures.jackpot, this.random)
+    if (this.effectCardTextures) {
+      assignJackpotRuntimeEffectCards(
+        entity,
+        this.effectCardTextures,
+        this.random,
+      )
     }
     this.callbacks.onJackpotRevealed()
     this.emitHudSnapshot()
@@ -409,6 +411,7 @@ export class PixiGameRuntime {
 
   private beginRoundEnding(): void {
     this.roundEnding = true
+    this.effectCardSystem?.cancelPending()
     this.callbacks.onRoundFinishing()
     for (const entity of this.entities) {
       entity.container.eventMode = 'none'
@@ -489,6 +492,7 @@ export class PixiGameRuntime {
   }
 
   private clearScene(): void {
+    this.effectCardSystem?.clear()
     for (const entity of [...this.entities]) this.removeEntity(entity)
     this.deathEffectSystem?.clear()
   }

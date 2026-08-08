@@ -4,6 +4,10 @@ import type { MimicId, RoundResult, Vector2 } from '../../types/game'
 import type { HudSnapshot } from '../../store/gameStore'
 import type { JackpotLifecycle } from '../combat/combat'
 import type { MimicCrackVisual } from './damage/mimicCrackVisual'
+import type {
+  EffectCardAttachment,
+  EffectCardFan,
+} from './effectCards/effectCardVisual'
 
 export interface RuntimeCallbacks {
   onHudSnapshot: (snapshot: HudSnapshot) => void
@@ -37,6 +41,8 @@ export interface RuntimeMimicEntity {
   hitAnimationRemainingMs: number
   jackpotLifecycle: JackpotLifecycle | null
   jackpotVelocity: Vector2
+  attachedCardFan: EffectCardFan | null
+  effectCards: EffectCardAttachment[]
 }
 
 export interface AnimatedEffect {

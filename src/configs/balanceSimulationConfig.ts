@@ -1,5 +1,5 @@
 export const balanceSimulationConfig = {
-  configVersion: 'initial-vertical-slice-v1',
+  configVersion: 'initial-thunder-jackpot-card-v4',
   seeds: [11, 29, 47, 83, 131, 197, 263, 347, 431, 557, 683, 809],
   field: {
     widthPixels: 1_280,
@@ -26,5 +26,6 @@ export const balanceSimulationConfig = {
     maximumSpawnShareDeviation: 0.08,
     targetProfileDefeatedMimics: { minimum: 42, maximum: 55 },
     targetProfileJackpotDefeatRate: { minimum: 0.95, maximum: 1 },
+    effectCardCarrierRateTolerance: 0.02,
   },
 } as const

@@ -20,10 +20,7 @@ export function MainMenu({
     <div className="overlay overlay--menu">
       <section className="panel main-menu">
         <p className="eyebrow">ACTIVE CLICKER PROTOTYPE</p>
-        <h1>Mimic Breaker</h1>
-        <p className="main-menu__lead">
-          敲碎流過場地的寶箱。找到藏在其中的 Jackpot，揭穿後在它逃走前追上它。
-        </p>
+        <h1>Mimic Clicker</h1>
         <div className="career-stats">
           <div><small>完成局數</small><strong>{progress.completedRounds}</strong></div>
           <div><small>總金幣</small><strong>{progress.gold}</strong></div>
