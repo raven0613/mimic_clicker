@@ -1,8 +1,8 @@
-import { Container, Graphics, Sprite, Text, type Texture } from 'pixi.js'
+import { Container, Graphics, Sprite, type Texture } from 'pixi.js'
 
-import { animationConfig } from '../../configs/animationConfig'
-import type { RandomSource } from '../../types/game'
-import type { AnimatedEffect } from './runtimeTypes'
+import { animationConfig } from '../../../configs/animationConfig'
+import type { RandomSource } from '../../../types/game'
+import type { AnimatedEffect } from '../runtimeTypes'
 
 function randomBetween(
   minimum: number,
@@ -10,79 +10,6 @@ function randomBetween(
   random: RandomSource,
 ): number {
   return minimum + (maximum - minimum) * random()
-}
-
-export function createRewardEffects(
-  x: number,
-  y: number,
-  reward: number,
-  random: RandomSource,
-): AnimatedEffect[] {
-  const effects: AnimatedEffect[] = []
-  const label = new Text({
-    text: `+${reward}`,
-    style: {
-      fill: animationConfig.rewardBurst.labelColor,
-      fontFamily: 'system-ui, sans-serif',
-      fontSize: animationConfig.rewardBurst.labelFontSizePixels,
-      fontWeight: '800',
-      stroke: {
-        color: animationConfig.rewardBurst.labelStrokeColor,
-        width: animationConfig.rewardBurst.labelStrokeWidthPixels,
-      },
-    },
-  })
-  label.anchor.set(0.5)
-  label.position.set(x, y)
-  effects.push({
-    container: label,
-    elapsedMs: 0,
-    durationMs: animationConfig.rewardBurst.durationMs,
-    velocity: { x: 0, y: -animationConfig.rewardBurst.labelRisePixelsPerSecond },
-    gravityPixelsPerSecondSquared: 0,
-    rotationSpeedRadiansPerSecond: 0,
-  })
-
-  for (
-    let index = 0;
-    index < animationConfig.rewardBurst.particleCount;
-    index += 1
-  ) {
-    const particleRadius = randomBetween(
-      animationConfig.rewardBurst.particleMinimumRadiusPixels,
-      animationConfig.rewardBurst.particleMaximumRadiusPixels,
-      random,
-    )
-    const particleColorIndex = Math.floor(
-      random() * animationConfig.rewardBurst.particleColors.length,
-    )
-    const particle = new Graphics().circle(0, 0, particleRadius).fill({
-      color: animationConfig.rewardBurst.particleColors[particleColorIndex],
-      alpha: 0.95,
-    })
-    particle.position.set(x, y)
-    const angle = randomBetween(
-      animationConfig.rewardBurst.minimumAngleRadians,
-      animationConfig.rewardBurst.maximumAngleRadians,
-      random,
-    )
-    const speed = randomBetween(
-      animationConfig.rewardBurst.minimumSpeedPixelsPerSecond,
-      animationConfig.rewardBurst.maximumSpeedPixelsPerSecond,
-      random,
-    )
-    effects.push({
-      container: particle,
-      elapsedMs: 0,
-      durationMs: animationConfig.rewardBurst.durationMs,
-      velocity: { x: Math.cos(angle) * speed, y: Math.sin(angle) * speed },
-      gravityPixelsPerSecondSquared:
-        animationConfig.rewardBurst.gravityPixelsPerSecondSquared,
-      rotationSpeedRadiansPerSecond: 0,
-    })
-  }
-
-  return effects
 }
 
 export function createShatterEffects(

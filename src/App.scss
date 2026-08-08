@@ -52,14 +52,68 @@ $red: #d84b42;
   position: absolute;
   top: 24px;
   right: 24px;
+}
 
-  span {
-    padding: 9px 13px;
-    border: 1px solid rgba(255, 236, 196, 0.22);
-    border-radius: 10px;
-    background: rgba(25, 17, 13, 0.78);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
-    font-weight: 750;
+.hud__stat {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 7px 12px;
+  border: 1px solid rgba(255, 236, 196, 0.22);
+  border-radius: 10px;
+  background: rgba(25, 17, 13, 0.78);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  font-weight: 800;
+}
+
+.hud__gold-target {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 5px rgba(255, 184, 38, 0.3));
+}
+
+.hud__stat-label {
+  color: rgba(255, 243, 214, 0.68);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.rolling-number {
+  display: inline-flex;
+  overflow: hidden;
+  color: #ffe189;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.rolling-digit {
+  display: inline-block;
+  overflow: hidden;
+  width: 0.64em;
+  height: 1em;
+  line-height: 1;
+  text-align: center;
+}
+
+.rolling-digit__track {
+  display: flex;
+  flex-direction: column;
+  animation: rolling-digit-up var(--rolling-digit-duration)
+    cubic-bezier(0.2, 0.78, 0.2, 1) both;
+}
+
+.rolling-digit__value {
+  flex: 0 0 1em;
+  height: 1em;
+}
+
+@keyframes rolling-digit-up {
+  to {
+    transform: translateY(calc(var(--rolling-digit-steps) * -1em));
   }
 }
 

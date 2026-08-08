@@ -1,5 +1,5 @@
 import { useMachine } from '@xstate/react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import './App.scss'
 import { GameCanvas } from './components/game/GameCanvas'
@@ -14,7 +14,7 @@ import { decodeProgress, encodeProgress } from './service/save/saveCodec'
 import { createSaveRepository } from './service/save/saveRepository'
 import { gameFlowMachine } from './state/gameFlowMachine'
 import { useGameStore } from './store/gameStore'
-import type { ProgressData, RoundResult } from './types/game'
+import type { ProgressData, RoundResult, Vector2 } from './types/game'
 
 const saveRepository = createSaveRepository()
 type FailedOperation = 'boot' | 'settlement' | 'unlock'
@@ -106,6 +106,11 @@ function App() {
     send({ type: 'ROUND_COMPLETED' })
   }
 
+  const handleGoldTargetChange = useCallback(
+    (target: Vector2 | null) => runtime?.setRewardCollectionTarget(target),
+    [runtime],
+  )
+
   async function acknowledgeCurrentUnlock() {
     const mimicId = progress.pendingUnlockMimicIds[0]
     if (!mimicId || unlockSaveBusy) return
@@ -191,7 +196,9 @@ function App() {
         onRoundCompleted={handleRoundCompleted}
       />
 
-      {flow.matches('playing') && <GameHud hud={hud} />}
+      {flow.matches('playing') && (
+        <GameHud hud={hud} onGoldTargetChange={handleGoldTargetChange} />
+      )}
       {flow.matches('loadingSave') && (
         <StatusOverlay title="載入中" message="正在準備存檔與遊戲資源…" />
       )}

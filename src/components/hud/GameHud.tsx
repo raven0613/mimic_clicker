@@ -1,13 +1,44 @@
+import { useLayoutEffect, useRef } from 'react'
+
+import goldCoinImageUrl from '../../assets/coin/gold_coin_idle.png'
 import { jackpotConfig } from '../../configs/jackpotConfig'
 import { roundConfig } from '../../configs/roundConfig'
 import type { HudSnapshot } from '../../store/gameStore'
+import type { Vector2 } from '../../types/game'
+import { RollingGoldCounter } from './RollingGoldCounter'
 import { TimerBar } from './TimerBar'
 
 interface GameHudProps {
   hud: HudSnapshot
+  onGoldTargetChange: (target: Vector2 | null) => void
 }
 
-export function GameHud({ hud }: GameHudProps) {
+export function GameHud({ hud, onGoldTargetChange }: GameHudProps) {
+  const goldTargetRef = useRef<HTMLImageElement>(null)
+
+  useLayoutEffect(() => {
+    const goldTarget = goldTargetRef.current
+    if (!goldTarget) return
+
+    const reportTarget = () => {
+      const bounds = goldTarget.getBoundingClientRect()
+      onGoldTargetChange({
+        x: bounds.left + bounds.width / 2,
+        y: bounds.top + bounds.height / 2,
+      })
+    }
+    reportTarget()
+    const resizeObserver = new ResizeObserver(reportTarget)
+    resizeObserver.observe(goldTarget)
+    window.addEventListener('resize', reportTarget)
+
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', reportTarget)
+      onGoldTargetChange(null)
+    }
+  }, [onGoldTargetChange])
+
   return (
     <div className="hud">
       <div className="hud__top">
@@ -27,8 +58,20 @@ export function GameHud({ hud }: GameHudProps) {
         )}
       </div>
       <div className="hud__stats">
-        <span>Gold +{hud.roundGold}</span>
-        <span>Breaks {hud.defeatedMimics}</span>
+        <span className="hud__stat hud__gold">
+          <img
+            className="hud__gold-target"
+            src={goldCoinImageUrl}
+            alt=""
+            ref={goldTargetRef}
+          />
+          <span className="hud__stat-label">Gold</span>
+          <RollingGoldCounter value={hud.presentedRoundGold} />
+        </span>
+        <span className="hud__stat">
+          <span className="hud__stat-label">Breaks</span>
+          {hud.defeatedMimics}
+        </span>
       </div>
     </div>
   )

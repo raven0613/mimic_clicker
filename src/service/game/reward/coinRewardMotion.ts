@@ -1,0 +1,142 @@
+import { coinRewardAnimationConfig } from '../../../configs/coinRewardAnimationConfig'
+import type { Vector2 } from '../../../types/game'
+
+export type CoinRewardPhase =
+  | 'airborne'
+  | 'resting'
+  | 'collecting'
+  | 'completed'
+
+export interface CoinRewardMotion {
+  phase: CoinRewardPhase
+  x: number
+  y: number
+  velocityX: number
+  velocityY: number
+  groundY: number
+  remainingBounces: number
+  bounceVelocityRetention: number
+  phaseElapsedMs: number
+  flipElapsedMs: number
+  restDurationMs: number
+  collectionStartX: number
+  collectionStartY: number
+  collectionDurationMs: number
+  collectionArcHeightPixels: number
+}
+
+export function calculateVisualCoinCount(reward: number): number {
+  if (reward <= 0) return 0
+
+  const additionalCoins = Math.ceil(
+    reward /
+      coinRewardAnimationConfig.burst.rewardPerAdditionalVisualCoin,
+  )
+  return Math.min(
+    coinRewardAnimationConfig.burst.maximumVisualCoinCount,
+    coinRewardAnimationConfig.burst.baseVisualCoinCount + additionalCoins,
+  )
+}
+
+export function calculateCoinFlipFrameIndex(
+  flipElapsedMs: number,
+): number {
+  const elapsedFrames = Math.floor(
+    (flipElapsedMs / 1_000) *
+      coinRewardAnimationConfig.sprite.flipFramesPerSecond,
+  )
+  return elapsedFrames % coinRewardAnimationConfig.spriteSheet.frameCount
+}
+
+function updateAirborneMotion(
+  motion: CoinRewardMotion,
+  deltaMs: number,
+): void {
+  const deltaSeconds = deltaMs / 1_000
+  motion.flipElapsedMs += deltaMs
+  motion.velocityY +=
+    coinRewardAnimationConfig.burst.gravityPixelsPerSecondSquared * deltaSeconds
+  motion.x += motion.velocityX * deltaSeconds
+  motion.y += motion.velocityY * deltaSeconds
+
+  if (motion.y < motion.groundY || motion.velocityY <= 0) return
+
+  motion.y = motion.groundY
+  motion.remainingBounces -= 1
+  if (motion.remainingBounces <= 0) {
+    motion.remainingBounces = 0
+    motion.velocityX = 0
+    motion.velocityY = 0
+    motion.phase = 'resting'
+    motion.phaseElapsedMs = 0
+    return
+  }
+
+  motion.velocityX *=
+    coinRewardAnimationConfig.landing.horizontalVelocityRetention
+  motion.velocityY =
+    -motion.velocityY * motion.bounceVelocityRetention
+}
+
+function updateRestingMotion(
+  motion: CoinRewardMotion,
+  deltaMs: number,
+  collectionTarget: Vector2 | null,
+): void {
+  motion.phaseElapsedMs += deltaMs
+  if (
+    motion.phaseElapsedMs < motion.restDurationMs ||
+    collectionTarget === null
+  ) {
+    return
+  }
+
+  motion.phase = 'collecting'
+  motion.phaseElapsedMs = 0
+  motion.collectionStartX = motion.x
+  motion.collectionStartY = motion.y
+}
+
+function updateCollectingMotion(
+  motion: CoinRewardMotion,
+  deltaMs: number,
+  collectionTarget: Vector2 | null,
+): void {
+  if (collectionTarget === null) return
+
+  motion.phaseElapsedMs += deltaMs
+  const progress = Math.min(
+    1,
+    motion.phaseElapsedMs / motion.collectionDurationMs,
+  )
+  const easedProgress = progress * progress
+  const arcOffset =
+    Math.sin(progress * Math.PI) * motion.collectionArcHeightPixels
+  motion.x =
+    motion.collectionStartX +
+    (collectionTarget.x - motion.collectionStartX) * easedProgress
+  motion.y =
+    motion.collectionStartY +
+    (collectionTarget.y - motion.collectionStartY) * easedProgress -
+    arcOffset
+
+  if (progress < 1) return
+
+  motion.x = collectionTarget.x
+  motion.y = collectionTarget.y
+  motion.phase = 'completed'
+}
+
+export function advanceCoinRewardMotion(
+  motion: CoinRewardMotion,
+  deltaMs: number,
+  collectionTarget: Vector2 | null,
+): void {
+  if (motion.phase === 'airborne') {
+    updateAirborneMotion(motion, deltaMs)
+  } else if (motion.phase === 'resting') {
+    updateRestingMotion(motion, deltaMs, collectionTarget)
+  } else if (motion.phase === 'collecting') {
+    updateCollectingMotion(motion, deltaMs, collectionTarget)
+  }
+}

@@ -7,6 +7,7 @@ export interface HudSnapshot {
   mainRemainingMs: number
   jackpotRemainingMs: number | null
   roundGold: number
+  presentedRoundGold: number
   defeatedMimics: number
   jackpotOutcome: JackpotOutcome | null
 }
@@ -24,6 +25,7 @@ export const initialHudSnapshot: HudSnapshot = {
   mainRemainingMs: 0,
   jackpotRemainingMs: null,
   roundGold: 0,
+  presentedRoundGold: 0,
   defeatedMimics: 0,
   jackpotOutcome: null,
 }
