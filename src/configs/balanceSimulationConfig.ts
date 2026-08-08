@@ -1,5 +1,5 @@
 export const balanceSimulationConfig = {
-  configVersion: 'initial-thunder-jackpot-card-v4',
+  configVersion: 'per-target-weapon-damage-interval-v8',
   seeds: [11, 29, 47, 83, 131, 197, 263, 347, 431, 557, 683, 809],
   field: {
     widthPixels: 1_280,

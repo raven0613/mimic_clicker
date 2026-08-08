@@ -51,14 +51,25 @@ describe('fixed-seed balance simulation', () => {
     )
     expect(
       Math.abs(
-        report.effectCardMetrics.carrierRate -
+        report.effectCardMetrics.carrierRate.thunder -
           effectCardConfig.thunder.carrierSpawnChance,
       ),
     ).toBeLessThanOrEqual(
       balanceSimulationConfig.targets.effectCardCarrierRateTolerance,
     )
-    expect(report.effectCardMetrics.strikesTriggered).toBeGreaterThan(0)
-    expect(report.effectCardMetrics.thunderDefeats).toBeGreaterThan(0)
+    expect(
+      Math.abs(
+        report.effectCardMetrics.carrierRate.meteorite -
+          effectCardConfig.meteorite.carrierSpawnChance,
+      ),
+    ).toBeLessThanOrEqual(
+      balanceSimulationConfig.targets.effectCardCarrierRateTolerance,
+    )
+    expect(report.effectCardMetrics.thunderStrikesTriggered).toBeGreaterThan(0)
+    expect(report.effectCardMetrics.meteoritesLaunched).toBeGreaterThan(0)
+    expect(report.effectCardMetrics.meteoriteImpacts).toBeGreaterThan(0)
+    expect(report.effectCardMetrics.defeats.thunder).toBeGreaterThan(0)
+    expect(report.effectCardMetrics.defeats.meteorite).toBeGreaterThan(0)
     expect(report.effectCardMetrics.maximumChainDepth).toBeGreaterThanOrEqual(1)
     expect(report.unfinishedRoundCount).toBe(0)
 

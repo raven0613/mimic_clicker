@@ -5,8 +5,11 @@ import { combatConfig } from '../../../configs/combatConfig'
 import { effectCardConfig } from '../../../configs/effectCardConfig'
 import {
   advanceEffectCardWindup,
+  calculateInitialMeteoriteDamage,
   calculateInitialThunderDamage,
   selectEffectCardAssignments,
+  selectJackpotEffectCardAssignments,
+  selectJackpotTargetCardCount,
 } from './effectCardRules'
 
 describe('effect card rules', () => {
@@ -23,30 +26,105 @@ describe('effect card rules', () => {
     expect(random).not.toHaveBeenCalled()
   })
 
-  it('attaches thunder below the configured chance and rejects the boundary', () => {
-    const chance = effectCardConfig.thunder.carrierSpawnChance
+  it('rolls thunder and meteorite independently and rejects each boundary', () => {
+    const thunderChance = effectCardConfig.thunder.carrierSpawnChance
+    const meteoriteChance = effectCardConfig.meteorite.carrierSpawnChance
 
-    expect(selectEffectCardAssignments(false, 1, () => chance / 2)).toEqual([
-      { id: 'thunder', rarity: 'normal' },
+    expect(
+      selectEffectCardAssignments(false, 2, sequenceRandom([
+        thunderChance / 2,
+        meteoriteChance,
+      ])),
+    ).toEqual([
+      { id: 'thunder', frameId: 'normal', rarity: 'normal' },
     ])
-    expect(selectEffectCardAssignments(false, 1, () => chance)).toEqual([])
+    expect(
+      selectEffectCardAssignments(false, 2, sequenceRandom([
+        thunderChance,
+        meteoriteChance / 2,
+      ])),
+    ).toEqual([
+      { id: 'meteorite', frameId: 'normal', rarity: 'ssr' },
+    ])
   })
 
-  it('does not duplicate the only available effect card to fill capacity', () => {
+  it('keeps both unique cards when capacity can hold both', () => {
     const assignments = selectEffectCardAssignments(
       false,
-      attachedCardConfig.capacity.jackpot.maximum,
+      attachedCardConfig.capacity.byMimic.rare2,
       () => 0,
     )
 
     expect(assignments).toHaveLength(new Set(assignments.map(({ id }) => id)).size)
-    expect(assignments).toEqual([{ id: 'thunder', rarity: 'normal' }])
+    expect(assignments).toEqual([
+      { id: 'thunder', frameId: 'normal', rarity: 'normal' },
+      { id: 'meteorite', frameId: 'normal', rarity: 'ssr' },
+    ])
+  })
+
+  it('fairly selects either candidate when both exceed capacity', () => {
+    const candidateRolls = [0, 0]
+
+    expect(
+      selectEffectCardAssignments(
+        false,
+        attachedCardConfig.capacity.byMimic.normal,
+        sequenceRandom([...candidateRolls, 0]),
+      ),
+    ).toEqual([
+      { id: 'thunder', frameId: 'normal', rarity: 'normal' },
+    ])
+    expect(
+      selectEffectCardAssignments(
+        false,
+        attachedCardConfig.capacity.byMimic.normal,
+        sequenceRandom([...candidateRolls, 0.999]),
+      ),
+    ).toEqual([
+      { id: 'meteorite', frameId: 'normal', rarity: 'ssr' },
+    ])
+  })
+
+  it('selects the Jackpot minimum or maximum target from config chances', () => {
+    const jackpot = attachedCardConfig.capacity.jackpot
+
+    expect(
+      selectJackpotTargetCardCount(
+        () => jackpot.countSelectionChances.minimum / 2,
+      ),
+    ).toBe(jackpot.minimum)
+    expect(
+      selectJackpotTargetCardCount(
+        () => jackpot.countSelectionChances.minimum,
+      ),
+    ).toBe(jackpot.maximum)
+  })
+
+  it('guarantees every available unique effect card for the current Jackpot', () => {
+    const random = vi.fn(() => 1)
+    const assignments = selectJackpotEffectCardAssignments(random)
+
+    expect(assignments).toEqual([
+      { id: 'thunder', frameId: 'normal', rarity: 'normal' },
+      { id: 'meteorite', frameId: 'normal', rarity: 'ssr' },
+    ])
+    expect(assignments).toHaveLength(
+      new Set(assignments.map(({ id }) => id)).size,
+    )
+    expect(random).toHaveBeenCalledTimes(1)
   })
 
   it('derives thunder damage from the initial weapon damage', () => {
     expect(calculateInitialThunderDamage()).toBe(
       combatConfig.initialWeaponDamage *
         effectCardConfig.thunder.initialWeaponDamageMultiplier,
+    )
+  })
+
+  it('derives meteorite damage from the initial weapon damage', () => {
+    expect(calculateInitialMeteoriteDamage()).toBe(
+      combatConfig.initialWeaponDamage *
+        effectCardConfig.meteorite.initialWeaponDamageMultiplier,
     )
   })
 
@@ -63,3 +141,13 @@ describe('effect card rules', () => {
     })
   })
 })
+
+function sequenceRandom(values: number[]): () => number {
+  let index = 0
+  return () => {
+    const value = values[index]
+    index += 1
+    if (value === undefined) throw new Error('Random sequence exhausted')
+    return value
+  }
+}

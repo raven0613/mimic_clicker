@@ -1,22 +1,16 @@
-import { AnimatedSprite, Container } from 'pixi.js'
+import { Container } from 'pixi.js'
 
 import { effectCardConfig } from '../../../configs/effectCardConfig'
 import type { RandomSource } from '../../../types/game'
 import { destroySpriteSheetFrameTextures } from '../assets/horizontalSpriteSheetTextures'
 import type { LoadedEffectCardTextures } from '../assets/runtimeAssets'
 import type { RuntimeMimicEntity } from '../runtimeTypes'
-import {
-  advanceEffectCardWindup,
-  calculateInitialThunderDamage,
-} from './effectCardRules'
+import { advanceEffectCardWindup } from './effectCardRules'
 import type { EffectCardAttachment } from './effectCardVisual'
-import {
-  collectThunderHitTargets,
-  selectThunderTarget,
-  type ThunderTarget,
-} from './thunderTargeting'
+import { MeteoriteEffectSystem } from './MeteoriteEffectSystem'
+import { ThunderEffectSystem } from './ThunderEffectSystem'
 
-interface PendingThunderCard {
+interface PendingEffectCard {
   attachment: EffectCardAttachment
   sourceX: number
   sourceY: number
@@ -26,39 +20,38 @@ interface PendingThunderCard {
   elapsedMs: number
 }
 
-interface ActiveThunderAnimation {
-  sprite: AnimatedSprite
-  elapsedMs: number
-}
-
-interface RuntimeThunderTarget extends ThunderTarget {
-  id: RuntimeMimicEntity
-}
-
 export class EffectCardSystem {
   private readonly layer = new Container({ eventMode: 'none' })
-  private readonly pendingCards: PendingThunderCard[] = []
-  private readonly activeThunderAnimations: ActiveThunderAnimation[] = []
+  private readonly pendingCards: PendingEffectCard[] = []
+  private readonly thunderSystem: ThunderEffectSystem
+  private readonly meteoriteSystem: MeteoriteEffectSystem
   private readonly textures: LoadedEffectCardTextures
-  private readonly random: RandomSource
-  private readonly getTargets: () => readonly RuntimeMimicEntity[]
-  private readonly damageTarget: (
-    entity: RuntimeMimicEntity,
-    damage: number,
-  ) => void
 
   public constructor(
     stage: Container,
     textures: LoadedEffectCardTextures,
     random: RandomSource,
+    getFieldSize: () => { width: number; height: number },
     getTargets: () => readonly RuntimeMimicEntity[],
     damageTarget: (entity: RuntimeMimicEntity, damage: number) => void,
   ) {
     this.textures = textures
-    this.random = random
-    this.getTargets = getTargets
-    this.damageTarget = damageTarget
     stage.addChild(this.layer)
+    this.thunderSystem = new ThunderEffectSystem(
+      this.layer,
+      textures.thunderFrames,
+      random,
+      getTargets,
+      damageTarget,
+    )
+    this.meteoriteSystem = new MeteoriteEffectSystem(
+      this.layer,
+      textures,
+      random,
+      getFieldSize,
+      getTargets,
+      damageTarget,
+    )
   }
 
   public activateAll(
@@ -83,8 +76,9 @@ export class EffectCardSystem {
   }
 
   public update(deltaMs: number): void {
-    this.updateThunderAnimations(deltaMs)
-    const readyCards: PendingThunderCard[] = []
+    this.thunderSystem.update(deltaMs)
+    this.meteoriteSystem.update(deltaMs)
+    const readyCards: PendingEffectCard[] = []
     for (let index = this.pendingCards.length - 1; index >= 0; index -= 1) {
       const pending = this.pendingCards[index]
       const progress = advanceEffectCardWindup(pending.elapsedMs, deltaMs)
@@ -95,25 +89,21 @@ export class EffectCardSystem {
       this.pendingCards.splice(index, 1)
       readyCards.unshift(pending)
     }
-    for (const pending of readyCards) {
-      this.destroyAttachment(pending.attachment)
-      this.triggerThunder(pending.sourceX, pending.sourceY)
-    }
+    for (const pending of readyCards) this.dispatch(pending)
   }
 
-  public cancelPending(): void {
+  public cancelUnresolved(): void {
     for (const pending of this.pendingCards) {
       this.destroyAttachment(pending.attachment)
     }
     this.pendingCards.length = 0
+    this.meteoriteSystem.cancelUnresolved()
   }
 
   public clear(): void {
-    this.cancelPending()
-    for (const animation of this.activeThunderAnimations) {
-      this.destroyThunderAnimation(animation)
-    }
-    this.activeThunderAnimations.length = 0
+    this.cancelUnresolved()
+    this.thunderSystem.clear()
+    this.meteoriteSystem.clear()
   }
 
   public destroy(): void {
@@ -121,9 +111,21 @@ export class EffectCardSystem {
     this.layer.removeFromParent()
     this.layer.destroy({ children: true })
     destroySpriteSheetFrameTextures(this.textures.thunderFrames)
+    destroySpriteSheetFrameTextures(this.textures.meteoriteFrames)
+    destroySpriteSheetFrameTextures(this.textures.explosionFrames)
   }
 
-  private updateEjectionVisual(pending: PendingThunderCard): void {
+  private dispatch(pending: PendingEffectCard): void {
+    const { id } = pending.attachment
+    this.destroyAttachment(pending.attachment)
+    if (id === 'thunder') {
+      this.thunderSystem.trigger({ x: pending.sourceX, y: pending.sourceY })
+      return
+    }
+    this.meteoriteSystem.trigger()
+  }
+
+  private updateEjectionVisual(pending: PendingEffectCard): void {
     const ejection = effectCardConfig.ejection
     const progress = pending.elapsedMs / ejection.durationMs
     pending.attachment.container.position.set(
@@ -135,86 +137,8 @@ export class EffectCardSystem {
     pending.attachment.container.alpha = 1 - progress
   }
 
-  private triggerThunder(sourceX: number, sourceY: number): void {
-    const selectedEntities = new Set<RuntimeMimicEntity>()
-    for (
-      let strikeIndex = 0;
-      strikeIndex < effectCardConfig.thunder.initialStrikeCount;
-      strikeIndex += 1
-    ) {
-      const targets = this.getTargets().map(toThunderTarget)
-      const selected = selectThunderTarget(targets, selectedEntities, this.random)
-      const strikeX = selected?.logicalX ?? sourceX
-      const strikeY = selected?.logicalY ?? sourceY
-      this.addThunderAnimation(strikeX, strikeY)
-      if (!selected) continue
-
-      selectedEntities.add(selected.id)
-      const damage = calculateInitialThunderDamage()
-      for (const hit of collectThunderHitTargets(targets, selected)) {
-        this.damageTarget(hit.id, damage)
-      }
-    }
-  }
-
-  private addThunderAnimation(x: number, y: number): void {
-    const sprite = new AnimatedSprite({
-      textures: this.textures.thunderFrames,
-      autoUpdate: false,
-      loop: false,
-      anchor: { x: 0.5, y: 1 },
-      eventMode: 'none',
-      roundPixels: true,
-    })
-    const sheet = effectCardConfig.thunder.spriteSheet
-    sprite.setSize(sheet.frameWidthPixels, sheet.frameHeightPixels)
-    sprite.position.set(Math.round(x), Math.round(y))
-    sprite.gotoAndStop(0)
-    this.activeThunderAnimations.push({ sprite, elapsedMs: 0 })
-    this.layer.addChild(sprite)
-  }
-
-  private updateThunderAnimations(deltaMs: number): void {
-    const durationMs = effectCardConfig.thunder.animationDurationMs
-    const frameCount = this.textures.thunderFrames.length
-    for (
-      let index = this.activeThunderAnimations.length - 1;
-      index >= 0;
-      index -= 1
-    ) {
-      const animation = this.activeThunderAnimations[index]
-      animation.elapsedMs = Math.min(durationMs, animation.elapsedMs + deltaMs)
-      if (animation.elapsedMs >= durationMs) {
-        this.activeThunderAnimations.splice(index, 1)
-        this.destroyThunderAnimation(animation)
-        continue
-      }
-      const frameIndex = Math.min(
-        frameCount - 1,
-        Math.floor((animation.elapsedMs / durationMs) * frameCount),
-      )
-      animation.sprite.gotoAndStop(frameIndex)
-    }
-  }
-
   private destroyAttachment(attachment: EffectCardAttachment): void {
     attachment.container.removeFromParent()
     attachment.container.destroy({ children: true })
-  }
-
-  private destroyThunderAnimation(animation: ActiveThunderAnimation): void {
-    animation.sprite.removeFromParent()
-    animation.sprite.destroy({ texture: false, textureSource: false })
-  }
-}
-
-function toThunderTarget(entity: RuntimeMimicEntity): RuntimeThunderTarget {
-  return {
-    id: entity,
-    role: entity.role,
-    health: entity.health,
-    logicalX: entity.logicalX,
-    logicalY: entity.logicalY,
-    jackpotPhase: entity.jackpotLifecycle?.phase ?? null,
   }
 }

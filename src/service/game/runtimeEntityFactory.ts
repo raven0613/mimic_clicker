@@ -1,10 +1,10 @@
-import { Container, Rectangle, Sprite } from 'pixi.js'
+import { Container, Rectangle, Sprite, type FederatedPointerEvent } from 'pixi.js'
 
 import { attachedCardFanContainsPoint } from './attachedCards/attachedCardLayout'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import { roundConfig } from '../../configs/roundConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
-import type { MimicId } from '../../types/game'
+import type { MimicId, Vector2 } from '../../types/game'
 import type { LoadedEffectCardTextures } from './assets/runtimeAssets'
 import { createMimicCrackVisual } from './damage/mimicCrackVisual'
 import type { EffectCardAssignment } from './effectCards/effectCardRules'
@@ -21,7 +21,7 @@ interface CreateRuntimeMimicInput {
   textures: LoadedMimicTextures
   effectCardTextures: LoadedEffectCardTextures
   effectCardAssignments: readonly EffectCardAssignment[]
-  onAttack: (entity: RuntimeMimicEntity) => void
+  onAttack: (entity: RuntimeMimicEntity, position: Vector2) => void
 }
 
 export function createRuntimeMimicEntity(
@@ -71,6 +71,7 @@ export function createRuntimeMimicEntity(
       (input.fieldHeight + cardHeight * 2) /
       (roundConfig.mimicFieldTravelDurationMs / 1_000),
     hitAnimationRemainingMs: 0,
+    nextWeaponDamageAllowedAtMs: 0,
     jackpotLifecycle: null,
     jackpotVelocity: { x: 0, y: 0 },
     attachedCardFan: null,
@@ -93,7 +94,9 @@ export function createRuntimeMimicEntity(
   } else {
     container.eventMode = 'static'
     container.cursor = 'pointer'
-    container.on('pointertap', () => input.onAttack(entity))
+    container.on('pointertap', (event: FederatedPointerEvent) =>
+      input.onAttack(entity, { x: event.global.x, y: event.global.y }),
+    )
   }
   return entity
 }

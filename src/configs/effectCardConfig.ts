@@ -1,3 +1,8 @@
+import type {
+  AttachedCardFrameId,
+  AttachedCardRarity,
+} from './attachedCardConfig'
+
 export const effectCardConfig = {
   ejection: {
     durationMs: 160,
@@ -19,4 +24,54 @@ export const effectCardConfig = {
       frameCount: 9,
     },
   },
+  meteorite: {
+    carrierSpawnChance: 0.06,
+    initialMeteoriteCount: 2,
+    initialWeaponDamageMultiplier: 4,
+    displayScale: 0.75,
+    damageAreaWidthMultiplier: 1.05,
+    rotationRadians: Math.PI / 4,
+    entryOutsideMarginPixels: 1,
+    flightSpeedPixelsPerSecond: 800,
+    animationCycleDurationMs: 300,
+    minimumLaunchIntervalMs: 200,
+    maximumLaunchIntervalMs: 300,
+    explosionAnimationDurationMs: 360,
+    spriteSheet: {
+      assetLabel: 'effects/meteorite',
+      sourceWidthPixels: 1_410,
+      sourceHeightPixels: 500,
+      frameWidthPixels: 235,
+      frameHeightPixels: 500,
+      frameCount: 6,
+    },
+    explosionSpriteSheet: {
+      assetLabel: 'effects/explode',
+      sourceWidthPixels: 1_536,
+      sourceHeightPixels: 240,
+      frameWidthPixels: 256,
+      frameHeightPixels: 240,
+      frameCount: 6,
+    },
+  },
 } as const
+
+export const effectCardDefinitions = [
+  {
+    id: 'thunder',
+    frameId: 'normal',
+    rarity: 'normal',
+    chance: effectCardConfig.thunder.carrierSpawnChance,
+  },
+  {
+    id: 'meteorite',
+    frameId: 'normal',
+    rarity: 'ssr',
+    chance: effectCardConfig.meteorite.carrierSpawnChance,
+  },
+] as const satisfies readonly {
+  id: 'thunder' | 'meteorite'
+  frameId: AttachedCardFrameId
+  rarity: AttachedCardRarity
+  chance: number
+}[]

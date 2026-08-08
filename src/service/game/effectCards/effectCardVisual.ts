@@ -18,7 +18,7 @@ import type { LoadedEffectCardTextures } from '../assets/runtimeAssets'
 import type { EffectCardAssignment } from './effectCardRules'
 
 export interface EffectCardAttachment {
-  id: 'thunder'
+  id: EffectCardAssignment['id']
   rarity: AttachedCardRarity
   container: Container
   halo: Graphics
@@ -28,6 +28,7 @@ export type EffectCardFan = AttachedCardFan<EffectCardAttachment>
 
 const haloContexts: Record<AttachedCardRarity, GraphicsContext> = {
   normal: createHaloContext('normal'),
+  ssr: createHaloContext('ssr'),
 }
 
 function createHaloContext(rarity: AttachedCardRarity): GraphicsContext {
@@ -78,13 +79,13 @@ function createEffectCardAttachment(
     roundPixels: true,
   })
   const frame = new Sprite({
-    texture: textures.normalFrame,
+    texture: textures.frames[assignment.frameId],
     anchor: 0.5,
     eventMode: 'none',
     roundPixels: true,
   })
   const icon = new Sprite({
-    texture: textures.thunderIcon,
+    texture: textures.icons[assignment.id],
     anchor: 0.5,
     eventMode: 'none',
     roundPixels: true,

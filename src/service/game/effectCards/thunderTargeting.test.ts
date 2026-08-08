@@ -4,10 +4,10 @@ import { effectCardConfig } from '../../../configs/effectCardConfig'
 import { spawnConfig } from '../../../configs/spawnConfig'
 import {
   collectThunderHitTargets,
-  isEligibleThunderTarget,
   selectThunderTarget,
   type ThunderTarget,
 } from './thunderTargeting'
+import { isEligibleEffectAttackTarget } from './effectTargeting'
 
 function createTarget(
   id: string,
@@ -28,14 +28,14 @@ function createTarget(
 
 describe('thunder target selection', () => {
   it('accepts combat mimics and only a chasing revealed Jackpot', () => {
-    expect(isEligibleThunderTarget(createTarget('regular', 0, 0))).toBe(true)
+    expect(isEligibleEffectAttackTarget(createTarget('regular', 0, 0))).toBe(true)
     expect(
-      isEligibleThunderTarget(
+      isEligibleEffectAttackTarget(
         createTarget('disguise', 0, 0, { role: 'jackpotDisguise' }),
       ),
     ).toBe(true)
     expect(
-      isEligibleThunderTarget(
+      isEligibleEffectAttackTarget(
         createTarget('chasing', 0, 0, {
           role: 'jackpot',
           jackpotPhase: 'chasing',
@@ -43,7 +43,7 @@ describe('thunder target selection', () => {
       ),
     ).toBe(true)
     expect(
-      isEligibleThunderTarget(
+      isEligibleEffectAttackTarget(
         createTarget('escaping', 0, 0, {
           role: 'jackpot',
           jackpotPhase: 'escaping',
@@ -51,7 +51,7 @@ describe('thunder target selection', () => {
       ),
     ).toBe(false)
     expect(
-      isEligibleThunderTarget(createTarget('dead', 0, 0, { health: 0 })),
+      isEligibleEffectAttackTarget(createTarget('dead', 0, 0, { health: 0 })),
     ).toBe(false)
   })
 

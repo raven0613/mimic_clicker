@@ -9,7 +9,7 @@ import {
 import type { AnimatedEffect } from '../runtimeTypes'
 import { createShatterEffects, updateAnimatedEffect } from './shatterEffects'
 
-interface AddDeathEffectInput {
+export interface AddDeathEffectInput {
   texture: Texture
   x: number
   y: number

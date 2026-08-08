@@ -1,10 +1,9 @@
-import { attachedCardConfig } from '../../../configs/attachedCardConfig'
 import type { RandomSource } from '../../../types/game'
 import type { LoadedEffectCardTextures } from '../assets/runtimeAssets'
 import { setRuntimeEffectCards } from '../runtimeEntityFactory'
 import type { RuntimeMimicEntity } from '../runtimeTypes'
 import type { EffectCardSystem } from './EffectCardSystem'
-import { selectEffectCardAssignments } from './effectCardRules'
+import { selectJackpotEffectCardAssignments } from './effectCardRules'
 import { updateEffectCardHalo } from './effectCardVisual'
 
 export function updateRuntimeEffectCardHalos(
@@ -38,11 +37,7 @@ export function assignJackpotRuntimeEffectCards(
 ): void {
   setRuntimeEffectCards(
     entity,
-    selectEffectCardAssignments(
-      false,
-      attachedCardConfig.capacity.jackpot.maximum,
-      random,
-    ),
+    selectJackpotEffectCardAssignments(random),
     textures,
   )
 }

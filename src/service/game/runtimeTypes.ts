@@ -39,6 +39,7 @@ export interface RuntimeMimicEntity {
   logicalY: number
   downwardSpeedPixelsPerSecond: number
   hitAnimationRemainingMs: number
+  nextWeaponDamageAllowedAtMs: number
   jackpotLifecycle: JackpotLifecycle | null
   jackpotVelocity: Vector2
   attachedCardFan: EffectCardFan | null

@@ -27,6 +27,7 @@ function createEscapingJackpotEntity(): RuntimeMimicEntity {
     logicalY: 0,
     downwardSpeedPixelsPerSecond: 0,
     hitAnimationRemainingMs: 0,
+    nextWeaponDamageAllowedAtMs: 0,
     jackpotLifecycle: {
       phase: 'escaping',
       remainingChaseMs: 0,

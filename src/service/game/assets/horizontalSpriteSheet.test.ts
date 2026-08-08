@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest'
 
 import { coinRewardAnimationConfig } from '../../../configs/coinRewardAnimationConfig'
+import { animationConfig } from '../../../configs/animationConfig'
 import { effectCardConfig } from '../../../configs/effectCardConfig'
 import { createHorizontalSpriteSheetFrameRectangles } from './horizontalSpriteSheet'
 
 describe('horizontal sprite sheet slicing', () => {
   it.each([
     ['coin reward', coinRewardAnimationConfig.spriteSheet],
+    ['manual hit', animationConfig.manualHitEffect.spriteSheet],
     ['thunder', effectCardConfig.thunder.spriteSheet],
+    ['meteorite', effectCardConfig.meteorite.spriteSheet],
+    ['explosion', effectCardConfig.meteorite.explosionSpriteSheet],
   ])('creates every configured frame for %s', (_name, sheet) => {
     const frames = createHorizontalSpriteSheetFrameRectangles(
       sheet.sourceWidthPixels,

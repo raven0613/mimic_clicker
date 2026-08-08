@@ -11,19 +11,33 @@ import { calculateJackpotReward } from '../progression/progression'
 import { selectSpawnPosition, selectWeightedMimicId } from '../spawn/spawn'
 import {
   calculateInitialThunderDamage,
+  calculateInitialMeteoriteDamage,
   selectEffectCardAssignments,
+  selectJackpotEffectCardAssignments,
+  type EffectCardId,
 } from '../game/effectCards/effectCardRules'
+import {
+  collectMeteoriteHitTargets,
+  createMeteoriteLaunchOffsets,
+  createMeteoriteTrajectory,
+  selectMeteoriteLandingPoint,
+} from '../game/effectCards/meteoriteRules'
 import { createSeededRandom } from './createSeededRandom'
+import {
+  createBalanceSimulationReport,
+  type BalanceSimulationReport,
+} from './balanceSimulationReport'
 import {
   simulateEffectCardCombat,
   type BalanceCombatMimic,
 } from './effectCardBalanceSimulation'
+import { simulateRequiredWeaponHits } from './weaponAttackSimulation'
 
-type StageKey = 'normalOnly' | 'normalRare1' | 'allMimics'
+export type StageKey = 'normalOnly' | 'normalRare1' | 'allMimics'
 type PlayerModel = keyof typeof balanceSimulationConfig.playerClickRatesPerSecond
 type AccuracyModel = keyof typeof balanceSimulationConfig.accuracyRates
 
-interface SimulatedRound {
+export interface SimulatedRound {
   stage: StageKey
   playerModel: PlayerModel
   accuracyModel: AccuracyModel
@@ -39,10 +53,16 @@ interface SimulatedRound {
   jackpotDefeated: boolean
   jackpotEscaped: boolean
   effectCardEligibleSpawns: number
-  effectCardsGenerated: number
+  chanceEffectCardsGenerated: Record<EffectCardId, number>
+  effectCardsGenerated: Record<EffectCardId, number>
+  cardsTriggered: Record<EffectCardId, number>
+  attackHits: Record<EffectCardId, number>
+  additionalDamage: Record<EffectCardId, number>
+  effectDefeats: Record<EffectCardId, number>
   thunderStrikesTriggered: number
-  thunderDefeats: number
-  maximumThunderChainDepth: number
+  meteoritesLaunched: number
+  meteoriteImpacts: number
+  maximumEffectChainDepth: number
   finished: boolean
 }
 
@@ -51,33 +71,6 @@ interface SpawnStreamMetrics {
   placementAttempts: number
   placementRejections: number
   spawnedMimics: BalanceCombatMimic[]
-}
-
-export interface BalanceSimulationReport {
-  configVersion: string
-  caseCount: number
-  maximumPlacementRejectionRatio: number
-  maximumSpawnShareDeviation: number
-  targetProfileAverageDefeatedMimics: number
-  targetProfileJackpotDefeatRate: number
-  stageAverageTotalIncome: Record<StageKey, number>
-  stageAverageGeneratedMimics: Record<StageKey, number>
-  stageAverageDefeatedMimics: Record<StageKey, number>
-  mimicDefeatTimeMs: Record<MimicId, { average: number; p90: number }>
-  jackpotMetrics: {
-    averageOpportunities: number
-    revealRate: number
-    defeatRate: number
-    escapeRate: number
-  }
-  effectCardMetrics: {
-    carrierRate: number
-    strikesTriggered: number
-    thunderDefeats: number
-    maximumChainDepth: number
-  }
-  unfinishedRoundCount: number
-  summary: string
 }
 
 const stagePools: Record<StageKey, MimicId[]> = {
@@ -137,11 +130,11 @@ function simulateSpawnStream(
 
     const mimicId = selectWeightedMimicId(pool, random)
     generatedByMimic[mimicId] += 1
-    const hasThunderCard = selectEffectCardAssignments(
+    const effectCardIds = selectEffectCardAssignments(
       false,
       attachedCardConfig.capacity.byMimic[mimicId],
       random,
-    ).some(({ id }) => id === 'thunder')
+    ).map(({ id }) => id)
     spawnedMimics.push({
       id: spawnedMimics.length,
       mimicId,
@@ -152,7 +145,7 @@ function simulateSpawnStream(
       jackpotPhase: null,
       spawnedAtMs: nextSpawnMs,
       initialY: position.y + spawnConfig.cardHeightPixels / 2,
-      hasThunderCard,
+      effectCardIds,
     })
     activeBounds.push({
       x: position.x,
@@ -198,27 +191,33 @@ function simulateRound(
   const accuracy = balanceSimulationConfig.accuracyRates[accuracyModel]
   let landedClickBudget = roundConfig.durationMs * clickRate * accuracy / 1_000
   const shellMimicId = selectWeightedMimicId(pool, random)
-  const shellHasThunderCard = selectEffectCardAssignments(
+  const shellEffectCardIds = selectEffectCardAssignments(
     false,
     attachedCardConfig.capacity.byMimic[shellMimicId],
     random,
-  ).some(({ id }) => id === 'thunder')
+  ).map(({ id }) => id)
+  const shellHasThunderCard = shellEffectCardIds.includes('thunder')
   const shellHits = Math.ceil(
     mimicConfigs[shellMimicId].maximumHealth / combatConfig.initialWeaponDamage,
   )
+  const weaponAttemptIntervalMs = 1_000 / (clickRate * accuracy)
+  const shellWeaponAttacks = simulateRequiredWeaponHits(
+    shellHits,
+    roundConfig.initialJackpotSpawnDelayMs,
+    weaponAttemptIntervalMs,
+    0,
+  )
   const jackpotRevealed =
-    jackpotCase !== 'notRevealed' && landedClickBudget >= shellHits
-  if (jackpotRevealed) landedClickBudget -= shellHits
-  const jackpotHasThunderCard =
-    jackpotRevealed &&
-    selectEffectCardAssignments(
-      false,
-      attachedCardConfig.capacity.jackpot.maximum,
-      random,
-    ).some(({ id }) => id === 'thunder')
-  const shellDefeatAtMs =
-    roundConfig.initialJackpotSpawnDelayMs +
-    (shellHits / (clickRate * accuracy)) * 1_000
+    jackpotCase !== 'notRevealed' &&
+    shellWeaponAttacks.completedAtMs < roundConfig.durationMs &&
+    landedClickBudget >= shellWeaponAttacks.attemptCount
+  if (jackpotRevealed) {
+    landedClickBudget -= shellWeaponAttacks.attemptCount
+  }
+  const jackpotEffectCardIds = jackpotRevealed
+    ? selectJackpotEffectCardAssignments(random).map(({ id }) => id)
+    : []
+  const shellDefeatAtMs = shellWeaponAttacks.completedAtMs
   const regularTargetsAtReveal = spawnMetrics.spawnedMimics.filter(
     (mimic) => mimic.spawnedAtMs <= shellDefeatAtMs,
   ).length
@@ -227,37 +226,99 @@ function simulateRound(
     shellHasThunderCard &&
     Math.floor(random() * (regularTargetsAtReveal + 1)) ===
       regularTargetsAtReveal
+  const shellMeteoriteLaunchOffsets = shellEffectCardIds.includes('meteorite')
+    ? createMeteoriteLaunchOffsets(
+        effectCardConfig.meteorite.initialMeteoriteCount,
+        random,
+      )
+    : []
+  const shellMeteoriteLandings = shellMeteoriteLaunchOffsets.map(() =>
+    selectMeteoriteLandingPoint(
+      {
+        width: balanceSimulationConfig.field.widthPixels,
+        height: balanceSimulationConfig.field.heightPixels,
+      },
+      random,
+    ),
+  )
+  const jackpotTarget = {
+    id: -1,
+    role: 'jackpot' as const,
+    health: jackpotConfig.maximumHealth,
+    logicalX: balanceSimulationConfig.field.widthPixels / 2,
+    logicalY: balanceSimulationConfig.field.heightPixels / 2,
+    jackpotPhase: 'chasing' as const,
+  }
+  const shellMeteoriteHitsJackpot = shellMeteoriteLandings.filter(
+    (landing, index) => {
+      const trajectory = createMeteoriteTrajectory(
+        {
+          width: balanceSimulationConfig.field.widthPixels,
+          height: balanceSimulationConfig.field.heightPixels,
+        },
+        landing,
+      )
+      const impactDelayMs =
+        effectCardConfig.ejection.durationMs +
+        shellMeteoriteLaunchOffsets[index] +
+        (trajectory.distance /
+          effectCardConfig.meteorite.flightSpeedPixelsPerSecond) *
+          1_000
+      return (
+        impactDelayMs < jackpotConfig.chaseDurationMs &&
+        collectMeteoriteHitTargets([jackpotTarget], landing).length > 0
+      )
+    },
+  ).length
   const jackpotHealthBeforeClicks = Math.max(
     0,
     jackpotConfig.maximumHealth -
-      (shellThunderHitsJackpot ? calculateInitialThunderDamage() : 0),
+      (shellThunderHitsJackpot ? calculateInitialThunderDamage() : 0) -
+      shellMeteoriteHitsJackpot * calculateInitialMeteoriteDamage(),
   )
   const jackpotHits = Math.ceil(
     jackpotHealthBeforeClicks / combatConfig.initialWeaponDamage,
   )
-  const chaseClickCapacity =
-    jackpotConfig.chaseDurationMs * clickRate * accuracy / 1_000
+  const jackpotWeaponAttacks = simulateRequiredWeaponHits(
+    jackpotHits,
+    shellDefeatAtMs,
+    weaponAttemptIntervalMs,
+    shellWeaponAttacks.nextAllowedAtMs,
+  )
   const jackpotDefeated =
     jackpotCase === 'defeated' &&
     jackpotRevealed &&
-    chaseClickCapacity >= jackpotHits &&
-    landedClickBudget >= jackpotHits
-  if (jackpotDefeated) landedClickBudget -= jackpotHits
-
-  const scheduledThunderEvents = []
-  if (jackpotRevealed && shellHasThunderCard && !shellThunderHitsJackpot) {
-    scheduledThunderEvents.push({
-      readyAtMs: shellDefeatAtMs + effectCardConfig.ejection.durationMs,
-      chainDepth: 1,
-    })
+    jackpotWeaponAttacks.completedAtMs - shellDefeatAtMs <=
+      jackpotConfig.chaseDurationMs &&
+    landedClickBudget >= jackpotWeaponAttacks.attemptCount
+  if (jackpotDefeated) {
+    landedClickBudget -= jackpotWeaponAttacks.attemptCount
   }
-  if (jackpotDefeated && jackpotHasThunderCard) {
-    const jackpotDefeatAtMs =
-      shellDefeatAtMs + (jackpotHits / (clickRate * accuracy)) * 1_000
-    scheduledThunderEvents.push({
-      readyAtMs: jackpotDefeatAtMs + effectCardConfig.ejection.durationMs,
-      chainDepth: 1,
-    })
+
+  const scheduledCardEvents = []
+  if (jackpotRevealed) {
+    for (const id of shellEffectCardIds) {
+      if (id === 'thunder' && shellThunderHitsJackpot) continue
+      scheduledCardEvents.push({
+        id,
+        readyAtMs: shellDefeatAtMs + effectCardConfig.ejection.durationMs,
+        chainDepth: 1,
+        meteoriteLandings:
+          id === 'meteorite' ? shellMeteoriteLandings : undefined,
+        meteoriteLaunchOffsetsMs:
+          id === 'meteorite' ? shellMeteoriteLaunchOffsets : undefined,
+      })
+    }
+  }
+  if (jackpotDefeated) {
+    const jackpotDefeatAtMs = jackpotWeaponAttacks.completedAtMs
+    for (const id of jackpotEffectCardIds) {
+      scheduledCardEvents.push({
+        id,
+        readyAtMs: jackpotDefeatAtMs + effectCardConfig.ejection.durationMs,
+        chainDepth: 1,
+      })
+    }
   }
 
   const combatMetrics = simulateEffectCardCombat(
@@ -266,8 +327,37 @@ function simulateRound(
     clickRate,
     accuracy,
     random,
-    scheduledThunderEvents,
+    scheduledCardEvents,
   )
+  const generatedEffectCardIds = [
+    ...spawnMetrics.spawnedMimics.flatMap((mimic) => mimic.effectCardIds),
+    ...shellEffectCardIds,
+    ...jackpotEffectCardIds,
+  ]
+  const chanceGeneratedEffectCardIds = [
+    ...spawnMetrics.spawnedMimics.flatMap((mimic) => mimic.effectCardIds),
+    ...shellEffectCardIds,
+  ]
+  const directThunderHit = Number(shellThunderHitsJackpot)
+  const directMeteoriteHits = shellMeteoriteHitsJackpot
+  const cardsTriggered = {
+    ...combatMetrics.cardsTriggered,
+    thunder: combatMetrics.cardsTriggered.thunder + directThunderHit,
+  }
+  const attackHits = {
+    ...combatMetrics.attackHits,
+    thunder: combatMetrics.attackHits.thunder + directThunderHit,
+    meteorite: combatMetrics.attackHits.meteorite + directMeteoriteHits,
+  }
+  const additionalDamage = {
+    ...combatMetrics.additionalDamage,
+    thunder:
+      combatMetrics.additionalDamage.thunder +
+      directThunderHit * calculateInitialThunderDamage(),
+    meteorite:
+      combatMetrics.additionalDamage.meteorite +
+      directMeteoriteHits * calculateInitialMeteoriteDamage(),
+  }
   return {
     stage,
     playerModel,
@@ -283,26 +373,31 @@ function simulateRound(
     jackpotRevealed,
     jackpotDefeated,
     jackpotEscaped: jackpotRevealed && !jackpotDefeated,
-    effectCardEligibleSpawns:
-      spawnMetrics.spawnedMimics.length + 1 + Number(jackpotRevealed),
-    effectCardsGenerated:
-      spawnMetrics.spawnedMimics.filter((mimic) => mimic.hasThunderCard).length +
-      Number(shellHasThunderCard) + Number(jackpotHasThunderCard),
+    effectCardEligibleSpawns: spawnMetrics.spawnedMimics.length + 1,
+    chanceEffectCardsGenerated: countEffectCards(
+      chanceGeneratedEffectCardIds,
+    ),
+    effectCardsGenerated: countEffectCards(generatedEffectCardIds),
+    cardsTriggered,
+    attackHits,
+    additionalDamage,
+    effectDefeats: combatMetrics.defeats,
     thunderStrikesTriggered:
       combatMetrics.thunderStrikesTriggered +
       Number(shellThunderHitsJackpot) *
         effectCardConfig.thunder.initialStrikeCount,
+    meteoritesLaunched: combatMetrics.meteoritesLaunched,
+    meteoriteImpacts: combatMetrics.meteoriteImpacts,
+    maximumEffectChainDepth: combatMetrics.maximumEffectChainDepth,
     finished: true,
   }
 }
 
-function average(values: number[]): number {
-  return values.reduce((sum, value) => sum + value, 0) / values.length
-}
-
-function percentile(values: number[], ratio: number): number {
-  const sorted = [...values].sort((first, second) => first - second)
-  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * ratio))]
+function countEffectCards(ids: readonly EffectCardId[]): Record<EffectCardId, number> {
+  return {
+    thunder: ids.filter((id) => id === 'thunder').length,
+    meteorite: ids.filter((id) => id === 'meteorite').length,
+  }
 }
 
 export function runBalanceSimulation(): BalanceSimulationReport {
@@ -325,136 +420,7 @@ export function runBalanceSimulation(): BalanceSimulationReport {
     }
   }
 
-  const stageAverageTotalIncome = {} as Record<StageKey, number>
-  const stageAverageGeneratedMimics = {} as Record<StageKey, number>
-  const stageAverageDefeatedMimics = {} as Record<StageKey, number>
-  for (const stage of Object.keys(stagePools) as StageKey[]) {
-    const stageRounds = rounds.filter((round) => round.stage === stage)
-    stageAverageTotalIncome[stage] = average(
-      stageRounds.map((round) => round.ordinaryIncome + round.jackpotIncome),
-    )
-    stageAverageGeneratedMimics[stage] = average(
-      stageRounds.map((round) =>
-        Object.values(round.generatedByMimic).reduce((sum, value) => sum + value, 0),
-      ),
-    )
-    stageAverageDefeatedMimics[stage] = average(
-      stageRounds.map((round) =>
-        Object.values(round.defeatedByMimic).reduce((sum, value) => sum + value, 0),
-      ),
-    )
-  }
-
-  let maximumSpawnShareDeviation = 0
-  for (const stage of Object.keys(stagePools) as StageKey[]) {
-    const pool = stagePools[stage]
-    const stageRounds = rounds.filter((round) => round.stage === stage)
-    const totalGenerated = stageRounds.reduce(
-      (sum, round) =>
-        sum + Object.values(round.generatedByMimic).reduce((a, b) => a + b, 0),
-      0,
-    )
-    const totalWeight = pool.reduce(
-      (sum, mimicId) => sum + mimicConfigs[mimicId].spawnWeight,
-      0,
-    )
-    for (const mimicId of pool) {
-      const actual =
-        stageRounds.reduce(
-          (sum, round) => sum + round.generatedByMimic[mimicId],
-          0,
-        ) / totalGenerated
-      const expected = mimicConfigs[mimicId].spawnWeight / totalWeight
-      maximumSpawnShareDeviation = Math.max(
-        maximumSpawnShareDeviation,
-        Math.abs(actual - expected),
-      )
-    }
-  }
-
-  const defeatTimes = {} as BalanceSimulationReport['mimicDefeatTimeMs']
-  for (const mimicId of Object.keys(mimicConfigs) as MimicId[]) {
-    const times: number[] = []
-    for (const clickRate of Object.values(
-      balanceSimulationConfig.playerClickRatesPerSecond,
-    )) {
-      for (const accuracy of Object.values(balanceSimulationConfig.accuracyRates)) {
-        times.push(
-          Math.ceil(
-            mimicConfigs[mimicId].maximumHealth /
-              combatConfig.initialWeaponDamage,
-          ) /
-            (clickRate * accuracy) *
-            1_000,
-        )
-      }
-    }
-    defeatTimes[mimicId] = { average: average(times), p90: percentile(times, 0.9) }
-  }
-
-  const targetRounds = rounds.filter(
-    (round) =>
-      round.playerModel === 'target' && round.accuracyModel === 'target',
-  )
-  const targetDefeatRounds = targetRounds.filter(
-    (round) => round.jackpotCase === 'defeated',
-  )
-  const allEffectCardEligibleSpawns = rounds.reduce(
-    (sum, round) => sum + round.effectCardEligibleSpawns,
-    0,
-  )
-  const report: BalanceSimulationReport = {
-    configVersion: balanceSimulationConfig.configVersion,
-    caseCount: rounds.length,
-    maximumPlacementRejectionRatio: Math.max(
-      ...rounds.map((round) => round.placementRejections / round.placementAttempts),
-    ),
-    maximumSpawnShareDeviation,
-    targetProfileAverageDefeatedMimics: average(
-      targetRounds.map((round) =>
-        Object.values(round.defeatedByMimic).reduce((sum, value) => sum + value, 0),
-      ),
-    ),
-    targetProfileJackpotDefeatRate: average(
-      targetDefeatRounds.map((round) => Number(round.jackpotDefeated)),
-    ),
-    stageAverageTotalIncome,
-    stageAverageGeneratedMimics,
-    stageAverageDefeatedMimics,
-    mimicDefeatTimeMs: defeatTimes,
-    jackpotMetrics: {
-      averageOpportunities: average(rounds.map((round) => round.jackpotOpportunities)),
-      revealRate: average(rounds.map((round) => Number(round.jackpotRevealed))),
-      defeatRate: average(rounds.map((round) => Number(round.jackpotDefeated))),
-      escapeRate: average(rounds.map((round) => Number(round.jackpotEscaped))),
-    },
-    effectCardMetrics: {
-      carrierRate:
-        rounds.reduce((sum, round) => sum + round.effectCardsGenerated, 0) /
-        allEffectCardEligibleSpawns,
-      strikesTriggered: rounds.reduce(
-        (sum, round) => sum + round.thunderStrikesTriggered,
-        0,
-      ),
-      thunderDefeats: rounds.reduce(
-        (sum, round) => sum + round.thunderDefeats,
-        0,
-      ),
-      maximumChainDepth: Math.max(
-        ...rounds.map((round) => round.maximumThunderChainDepth),
-      ),
-    },
-    unfinishedRoundCount: rounds.filter((round) => !round.finished).length,
-    summary: '',
-  }
-  report.summary = [
-    `Balance ${report.configVersion}: ${report.caseCount} deterministic cases`,
-    `placement rejection max ${(report.maximumPlacementRejectionRatio * 100).toFixed(1)}%`,
-    `spawn share deviation max ${(report.maximumSpawnShareDeviation * 100).toFixed(1)}%`,
-    `target defeats ${report.targetProfileAverageDefeatedMimics.toFixed(1)} mimics/round`,
-    `target Jackpot defeat ${(report.targetProfileJackpotDefeatRate * 100).toFixed(1)}%`,
-    `Thunder ${(report.effectCardMetrics.carrierRate * 100).toFixed(1)}% carriers / ${report.effectCardMetrics.thunderDefeats} defeats / chain ${report.effectCardMetrics.maximumChainDepth}`,
-    `income ${Object.values(report.stageAverageTotalIncome).map((value) => value.toFixed(1)).join(' → ')}`,
-  ].join(' | ')
-  return report
+  return createBalanceSimulationReport(rounds, stagePools)
 }
+
+export type { BalanceSimulationReport } from './balanceSimulationReport'

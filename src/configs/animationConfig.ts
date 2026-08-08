@@ -1,4 +1,16 @@
 export const animationConfig = {
+  manualHitEffect: {
+    animationDurationMs: 180,
+    displayScale: 0.5,
+    spriteSheet: {
+      assetLabel: 'effects/hit',
+      sourceWidthPixels: 1_750,
+      sourceHeightPixels: 218,
+      frameWidthPixels: 350,
+      frameHeightPixels: 218,
+      frameCount: 5,
+    },
+  },
   hit: {
     durationMs: 120,
     flashDurationMs: 72,

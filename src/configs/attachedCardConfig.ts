@@ -1,6 +1,7 @@
 import type { MimicId } from '../types/game'
 
-export type AttachedCardRarity = 'normal'
+export type AttachedCardFrameId = 'normal'
+export type AttachedCardRarity = 'normal' | 'ssr'
 
 export const attachedCardConfig = {
   card: {
@@ -26,6 +27,10 @@ export const attachedCardConfig = {
     jackpot: {
       minimum: 3,
       maximum: 4,
+      countSelectionChances: {
+        minimum: 0.5,
+        maximum: 0.5,
+      },
     },
   },
   haloByRarity: {
@@ -39,6 +44,17 @@ export const attachedCardConfig = {
       baseOpacityMultiplier: 0.85,
       pulseAmplitude: 0.15,
       pulsePeriodMs: 900,
+    },
+    ssr: {
+      gradientColorStops: [
+        { offset: 0, color: 'rgba(255, 226, 104, 0.64)' },
+        { offset: 0.68, color: 'rgba(255, 170, 45, 0.38)' },
+        { offset: 1, color: 'rgba(255, 137, 24, 0)' },
+      ],
+      outerExpansionPixels: 6,
+      baseOpacityMultiplier: 0.88,
+      pulseAmplitude: 0.12,
+      pulsePeriodMs: 820,
     },
   } satisfies Record<AttachedCardRarity, object>,
 } as const

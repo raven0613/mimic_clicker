@@ -1,28 +1,19 @@
 import { effectCardConfig } from '../../../configs/effectCardConfig'
 import { spawnConfig } from '../../../configs/spawnConfig'
 import type { RandomSource } from '../../../types/game'
-import type { JackpotLifecycle } from '../../combat/combat'
+import {
+  isEligibleEffectAttackTarget,
+  type EffectAttackTarget,
+} from './effectTargeting'
 
-export interface ThunderTarget {
-  id: unknown
-  role: 'regular' | 'jackpotDisguise' | 'jackpot'
-  health: number | null
-  logicalX: number
-  logicalY: number
-  jackpotPhase: JackpotLifecycle['phase'] | null
-}
-
-export function isEligibleThunderTarget(target: ThunderTarget): boolean {
-  if (target.health === null || target.health <= 0) return false
-  return target.role !== 'jackpot' || target.jackpotPhase === 'chasing'
-}
+export type ThunderTarget = EffectAttackTarget
 
 export function selectThunderTarget<T extends ThunderTarget>(
   targets: readonly T[],
   previouslySelected: ReadonlySet<unknown>,
   random: RandomSource,
 ): T | null {
-  const eligible = targets.filter(isEligibleThunderTarget)
+  const eligible = targets.filter(isEligibleEffectAttackTarget)
   if (eligible.length === 0) return null
 
   const unselected = eligible.filter(
@@ -49,7 +40,7 @@ export function collectThunderHitTargets<T extends ThunderTarget>(
   const uniqueTargets = new Set<T>()
 
   for (const target of targets) {
-    if (!isEligibleThunderTarget(target)) continue
+    if (!isEligibleEffectAttackTarget(target)) continue
     const overlaps =
       Math.abs(target.logicalX - selectedTarget.logicalX) <=
         strikeHalfWidth + mimicHalfWidth &&
