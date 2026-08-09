@@ -134,6 +134,15 @@ export class EffectCardSystem {
     this.tornadoSystem.resetTargetDamageInterval(target)
   }
 
+  public hasActiveEffects(): boolean {
+    return (
+      this.pendingCards.length > 0 ||
+      this.thunderSystem.hasActiveEffects() ||
+      this.meteoriteSystem.hasActiveEffects() ||
+      this.tornadoSystem.hasActiveEffects()
+    )
+  }
+
   private dispatch(pending: PendingEffectCard): void {
     const { id } = pending.attachment
     this.destroyAttachment(pending.attachment)

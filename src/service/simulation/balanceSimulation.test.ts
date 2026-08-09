@@ -4,6 +4,9 @@ import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
 import { effectCardConfig } from '../../configs/effectCardConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import { spawnConfig } from '../../configs/spawnConfig'
+import {
+  calculateInitialMeteoriteDamage,
+} from '../game/effectCards/effectCardRules'
 import { runBalanceSimulation } from './balanceSimulation'
 
 describe('fixed-seed balance simulation', () => {
@@ -27,6 +30,13 @@ describe('fixed-seed balance simulation', () => {
     )
     expect(mimicConfigs.rare2.maximumHealth).toBeGreaterThan(
       mimicConfigs.rare1.maximumHealth,
+    )
+    expect(mimicConfigs.rare1.maximumHealth).toBeGreaterThan(
+      calculateInitialMeteoriteDamage(),
+    )
+    expect(mimicConfigs.rare2.maximumHealth).toBeGreaterThan(
+      calculateInitialMeteoriteDamage() *
+        effectCardConfig.meteorite.initialMeteoriteCount,
     )
     expect(mimicConfigs.rare1.baseReward).toBeGreaterThan(
       mimicConfigs.normal.baseReward,
@@ -87,6 +97,59 @@ describe('fixed-seed balance simulation', () => {
     expect(report.effectCardMetrics.defeats.meteorite).toBeGreaterThan(0)
     expect(report.effectCardMetrics.defeats.tornado).toBeGreaterThan(0)
     expect(report.effectCardMetrics.maximumChainDepth).toBeGreaterThanOrEqual(1)
+    expect(
+      report.clearRefillMetrics.p90EmptyFieldDurationMs,
+    ).toBeLessThanOrEqual(
+      balanceSimulationConfig.targets.clearRefill
+        .maximumP90EmptyFieldDurationMs,
+    )
+    expect(
+      report.clearRefillMetrics.refillTotalIncomeIncreaseRatio,
+    ).toBeLessThanOrEqual(
+      balanceSimulationConfig.targets.clearRefill
+        .maximumRefillTotalIncomeIncreaseRatio,
+    )
+    expect(
+      report.clearRefillMetrics.repeatedRefillsWithoutInterventionCount,
+    ).toBeLessThanOrEqual(
+      balanceSimulationConfig.targets.clearRefill
+        .maximumRepeatedRefillsWithoutIntervention,
+    )
+    expect(report.clearRefillMetrics.maximumDefeatsInEffectChain).toBeGreaterThan(0)
+    expect(report.clearRefillMetrics.maximumEffectChainClearRatio).toBeGreaterThan(0)
+    expect(report.clearRefillMetrics.refillEffectCardsGenerated.thunder).toBeGreaterThan(0)
+    expect(report.clearRefillMetrics.refillEffectCardsGenerated.meteorite).toBeGreaterThan(0)
+    expect(report.clearRefillMetrics.refillEffectCardsGenerated.tornado).toBeGreaterThan(0)
+    expect(report.clearRefillMetrics.refillEquipmentCardsGenerated.sword).toBeGreaterThan(0)
+    expect(report.clearRefillMetrics.refillEquipmentCardsGenerated.ring).toBeGreaterThan(0)
+    expect(report.clearRefillMetrics.rare1SurvivorsAfterEffectResolution).toBeGreaterThan(0)
+    expect(report.clearRefillMetrics.rare2SurvivorsAfterEffectResolution).toBeGreaterThan(0)
+    expect(report.clearRefillMetrics.effectDefeatsAfterPriorWeaponDamage).toBeGreaterThan(0)
+    const clearProfiles = report.clearRefillMetrics.profileAverageFullClears
+    expect(clearProfiles.weak).toBeGreaterThanOrEqual(
+      balanceSimulationConfig.targets.clearRefill
+        .weakAverageFullClearsPerRound.minimum,
+    )
+    expect(clearProfiles.weak).toBeLessThanOrEqual(
+      balanceSimulationConfig.targets.clearRefill
+        .weakAverageFullClearsPerRound.maximum,
+    )
+    expect(clearProfiles.standard).toBeGreaterThanOrEqual(
+      balanceSimulationConfig.targets.clearRefill
+        .standardAverageFullClearsPerRound.minimum,
+    )
+    expect(clearProfiles.standard).toBeLessThanOrEqual(
+      balanceSimulationConfig.targets.clearRefill
+        .standardAverageFullClearsPerRound.maximum,
+    )
+    expect(clearProfiles.strong).toBeGreaterThanOrEqual(
+      balanceSimulationConfig.targets.clearRefill
+        .strongAverageFullClearsPerRound.minimum,
+    )
+    expect(clearProfiles.strong).toBeLessThanOrEqual(
+      balanceSimulationConfig.targets.clearRefill
+        .strongAverageFullClearsPerRound.maximum,
+    )
     expect(report.equipmentMetrics.averageVisibleGeneratedPerRound.sword).toBeGreaterThan(0)
     expect(report.equipmentMetrics.averageVisibleGeneratedPerRound.ring).toBeGreaterThan(0)
     expect(report.equipmentMetrics.averageHiddenGeneratedPerRound.sword).toBeGreaterThan(0)

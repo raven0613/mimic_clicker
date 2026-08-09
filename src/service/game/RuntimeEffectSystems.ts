@@ -14,6 +14,7 @@ import {
 import { HitEffectSystem } from './effects/HitEffectSystem'
 import { EffectCardSystem } from './effectCards/EffectCardSystem'
 import { EquipmentRewardSystem } from './equipment/EquipmentRewardSystem'
+import { ClearFeedbackSystem } from './clearRefill/ClearFeedbackSystem'
 import type { RuntimeMimicEntity } from './runtimeTypes'
 
 interface RuntimeEffectSystemsInput {
@@ -32,6 +33,7 @@ export class RuntimeEffectSystems {
   private readonly effectCards: EffectCardSystem
   private readonly death: DeathEffectSystem
   private readonly hit: HitEffectSystem
+  private readonly clearFeedback: ClearFeedbackSystem
   private readonly getFieldSize: RuntimeEffectSystemsInput['getFieldSize']
 
   public constructor(input: RuntimeEffectSystemsInput) {
@@ -62,6 +64,7 @@ export class RuntimeEffectSystems {
       input.damageTarget,
     )
     this.hit = new HitEffectSystem(input.stage, input.assets.combatEffects)
+    this.clearFeedback = new ClearFeedbackSystem(input.stage, input.getFieldSize)
   }
 
   public setRewardCollectionTarget(
@@ -111,6 +114,7 @@ export class RuntimeEffectSystems {
     this.death.update(deltaMs)
     this.hit.update(deltaMs)
     this.equipment.update(deltaMs)
+    this.clearFeedback.update(deltaMs)
   }
 
   public updateEffectCards(deltaMs: number): void {
@@ -127,11 +131,20 @@ export class RuntimeEffectSystems {
     this.effectCards.resetTargetDamageInterval(target)
   }
 
+  public hasActiveEffectCardChain(): boolean {
+    return this.effectCards.hasActiveEffects()
+  }
+
+  public showClearFeedback(): void {
+    this.clearFeedback.show()
+  }
+
   public clear(): void {
     this.equipment.clear()
     this.effectCards.clear()
     this.hit.clear()
     this.death.clear()
+    this.clearFeedback.clear()
   }
 
   public destroy(): void {
@@ -139,5 +152,6 @@ export class RuntimeEffectSystems {
     this.effectCards.destroy()
     this.hit.destroy()
     this.death.destroy()
+    this.clearFeedback.destroy()
   }
 }

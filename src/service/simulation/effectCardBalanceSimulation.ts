@@ -1,11 +1,10 @@
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
 import { combatConfig } from '../../configs/combatConfig'
 import { effectCardConfig } from '../../configs/effectCardConfig'
-import type { EquipmentId } from '../../configs/equipmentConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import { roundConfig } from '../../configs/roundConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
-import type { MimicId, RandomSource, Vector2 } from '../../types/game'
+import type { MimicId, RandomSource } from '../../types/game'
 import type { EffectCardId } from '../game/attachedCards/attachedCardRules'
 import {
   calculateInitialMeteoriteDamage,
@@ -21,7 +20,6 @@ import {
 import {
   collectThunderHitTargets,
   selectThunderTarget,
-  type ThunderTarget,
 } from '../game/effectCards/thunderTargeting'
 import {
   advanceTornadoRunMotion,
@@ -30,74 +28,28 @@ import {
   collectTornadoHitTargets,
   createTornadoInitialDirections,
   selectTornadoTurnInterval,
-  type TornadoMotionState,
 } from '../game/effectCards/tornadoRules'
 import { evaluateWeaponDamageInterval } from '../game/damage/weaponDamageInterval'
+import { isEffectiveClearRefillTarget } from '../game/clearRefill/clearRefillTargets'
+import { ClearRefillBalanceTracker } from './clearRefillBalanceSimulation'
+import { EffectChainBalanceTracker } from './effectChainBalanceSimulation'
+import { RingBalanceTracker } from './ringBalanceSimulation'
+import type {
+  BalanceCombatMimic,
+  EffectCardCombatMetrics,
+  PendingCardEvent,
+  PendingEffectEvent,
+  SimulatedCombatMimic,
+  SimulatedEffectCardEvent,
+  SimulatedTornadoTick,
+} from './effectCardBalanceTypes'
 
-export interface BalanceCombatMimic extends ThunderTarget {
-  id: number
-  mimicId: MimicId
-  spawnedAtMs: number
-  initialY: number
-  effectCardIds: EffectCardId[]
-  visibleEquipmentIds: EquipmentId[]
-  hiddenEquipmentId: EquipmentId | null
-}
-
-export interface SimulatedEffectCardEvent {
-  id: EffectCardId
-  readyAtMs: number
-  chainDepth: number
-  meteoriteLandings?: Vector2[]
-  meteoriteLaunchOffsetsMs?: number[]
-  sourcePosition?: Vector2
-}
-
-interface SimulatedMeteoriteImpact {
-  kind: 'meteoriteImpact'
-  impactAtMs: number
-  landing: Vector2
-  chainDepth: number
-}
-
-interface SimulatedTornadoTick {
-  kind: 'tornadoTick'
-  tickAtMs: number
-  runEndsAtMs: number
-  motion: TornadoMotionState
-  nextDamageAllowedAtMsByTarget: Map<number, number>
-  chainDepth: number
-}
-
-interface PendingCardEvent extends SimulatedEffectCardEvent {
-  kind: 'card'
-}
-
-type PendingEffectEvent =
-  | PendingCardEvent
-  | SimulatedMeteoriteImpact
-  | SimulatedTornadoTick
-
-export interface EffectCardCombatMetrics {
-  defeatedByMimic: Record<MimicId, number>
-  ordinaryIncome: number
-  cardsTriggered: Record<EffectCardId, number>
-  attackHits: Record<EffectCardId, number>
-  additionalDamage: Record<EffectCardId, number>
-  defeats: Record<EffectCardId, number>
-  thunderStrikesTriggered: number
-  meteoritesLaunched: number
-  meteoriteImpacts: number
-  tornadoesSpawned: number
-  maximumEffectChainDepth: number
-}
+export type { BalanceCombatMimic, EffectCardCombatMetrics, SimulatedEffectCardEvent } from './effectCardBalanceTypes'
 
 const field = balanceSimulationConfig.field
-
 function emptyMimicCounts(): Record<MimicId, number> {
   return { normal: 0, rare1: 0, rare2: 0 }
 }
-
 function emptyEffectCounts(): Record<EffectCardId, number> {
   return { thunder: 0, meteorite: 0, tornado: 0 }
 }
@@ -109,19 +61,28 @@ export function simulateEffectCardCombat(
   accuracy: number,
   random: RandomSource,
   scheduledCardEvents: readonly SimulatedEffectCardEvent[] = [],
+  weaponDamage: number = combatConfig.initialWeaponDamage,
+  ringCount = 0,
 ): EffectCardCombatMetrics {
-  const mimics = sourceMimics.map((mimic) => ({
+  const mimics: SimulatedCombatMimic[] = sourceMimics.map((mimic) => ({
     ...mimic,
     effectCardIds: [...mimic.effectCardIds],
+    isRefill: false,
     nextWeaponDamageAllowedAtMs: 0,
+    weaponDamageTaken: 0,
   }))
   const defeatedByMimic = emptyMimicCounts()
   const cardsTriggered = emptyEffectCounts()
   const attackHits = emptyEffectCounts()
   const additionalDamage = emptyEffectCounts()
   const defeats = emptyEffectCounts()
+  let nextChainId = 1
   const pendingEvents: PendingEffectEvent[] = scheduledCardEvents.map(
-    (event) => ({ ...event, kind: 'card' }),
+    (event) => ({
+      ...event,
+      kind: 'card',
+      chainId: event.chainId ?? nextChainId++,
+    }),
   )
   pendingEvents.sort((first, second) => eventTime(first) - eventTime(second))
   const enqueueEffectEvent = (event: PendingEffectEvent) => {
@@ -144,7 +105,10 @@ export function simulateEffectCardCombat(
   let meteoriteImpacts = 0
   let tornadoesSpawned = 0
   let maximumEffectChainDepth = 0
-  let nextWeaponTargetIndex = 0
+  let rare1SurvivorsAfterEffectResolution = 0
+  let rare2SurvivorsAfterEffectResolution = 0
+  let effectDefeatsAfterPriorWeaponDamage = 0
+  const mimicPool = [...new Set(sourceMimics.map((mimic) => mimic.mimicId))]
 
   const getActiveMimics = (atMs: number) =>
     mimics.filter((mimic) => {
@@ -163,49 +127,82 @@ export function simulateEffectCardCombat(
       )
     })
 
-  const getWeaponTarget = (atMs: number) => {
-    while (nextWeaponTargetIndex < mimics.length) {
-      const mimic = mimics[nextWeaponTargetIndex]
-      if (mimic.spawnedAtMs > atMs) return null
-      mimic.logicalY =
-        mimic.initialY + movementSpeed * ((atMs - mimic.spawnedAtMs) / 1_000)
-      const hasExited =
-        mimic.logicalY - spawnConfig.cardHeightPixels / 2 > field.heightPixels
-      if (hasExited || mimic.health === null || mimic.health <= 0) {
-        nextWeaponTargetIndex += 1
-        continue
-      }
-      return mimic
-    }
-    return null
-  }
+  const getEffectiveMimics = (atMs: number) =>
+    getActiveMimics(atMs).filter((mimic) =>
+      isEffectiveClearRefillTarget(
+        {
+          bounds: {
+            x: mimic.logicalX - spawnConfig.cardWidthPixels / 2,
+            y: mimic.logicalY - spawnConfig.cardHeightPixels / 2,
+            width: spawnConfig.cardWidthPixels,
+            height: spawnConfig.cardHeightPixels,
+          },
+          health: mimic.health,
+          jackpotPhase: mimic.jackpotPhase,
+          role: mimic.role,
+        },
+        { x: 0, y: 0, width: field.widthPixels, height: field.heightPixels },
+      ),
+    )
+
+  const getWeaponTarget = (atMs: number) => getActiveMimics(atMs)[0] ?? null
+
+  const effectChainTracker = new EffectChainBalanceTracker(
+    (atMs) => getEffectiveMimics(atMs).length,
+  )
+  const clearRefillTracker = new ClearRefillBalanceTracker({
+    enqueueEvent: enqueueEffectEvent,
+    field,
+    getActiveMimics,
+    getEffectiveMimics,
+    markEffectChainFullClear: (chainId, atMs) =>
+      effectChainTracker.markFullClear(chainId, atMs),
+    mimicPool: mimicPool.length > 0 ? mimicPool : ['normal'],
+    mimics,
+    pendingEvents,
+    random,
+  })
 
   const defeatMimic = (
-    mimic: BalanceCombatMimic,
+    mimic: SimulatedCombatMimic,
     atMs: number,
     chainDepth: number,
     source: EffectCardId | null,
-  ) => {
+    chainId: number | null,
+  ): number | null => {
     defeatedByMimic[mimic.mimicId] += 1
     ordinaryIncome += mimicConfigs[mimic.mimicId].baseReward
-    if (source) defeats[source] += 1
+    clearRefillTracker.recordDefeat(mimic)
+    const resolvedChainId =
+      chainId ?? (mimic.effectCardIds.length > 0 ? nextChainId++ : null)
+    if (source) {
+      defeats[source] += 1
+      if (mimic.weaponDamageTaken > 0) effectDefeatsAfterPriorWeaponDamage += 1
+      if (resolvedChainId !== null) {
+        effectChainTracker.recordDefeat(resolvedChainId, mimic.id, atMs)
+      }
+    }
     for (const id of mimic.effectCardIds) {
+      if (resolvedChainId === null) continue
       enqueueEffectEvent({
         kind: 'card',
         id,
         readyAtMs: atMs + effectCardConfig.ejection.durationMs,
         chainDepth: chainDepth + 1,
+        chainId: resolvedChainId,
         sourcePosition: { x: mimic.logicalX, y: mimic.logicalY },
       })
     }
+    return resolvedChainId
   }
 
   const damageTargets = (
-    targets: readonly BalanceCombatMimic[],
+    targets: readonly SimulatedCombatMimic[],
     damage: number,
     source: EffectCardId,
     atMs: number,
     chainDepth: number,
+    chainId: number,
   ) => {
     for (const target of targets) {
       if (target.health === null || target.health <= 0) continue
@@ -214,10 +211,31 @@ export function simulateEffectCardCombat(
       attackHits[source] += 1
       additionalDamage[source] += appliedDamage
       if (target.health === 0) {
-        defeatMimic(target, atMs, chainDepth, source)
+        defeatMimic(target, atMs, chainDepth, source, chainId)
       }
     }
+    const remaining = getEffectiveMimics(atMs)
+    rare1SurvivorsAfterEffectResolution += remaining.filter(
+      (mimic) => mimic.mimicId === 'rare1',
+    ).length
+    rare2SurvivorsAfterEffectResolution += remaining.filter(
+      (mimic) => mimic.mimicId === 'rare2',
+    ).length
+    clearRefillTracker.request(atMs, chainId)
   }
+
+  const ringTracker = new RingBalanceTracker({
+    damageTarget: (target, damage, atMs) => {
+      target.health = Math.max(0, (target.health ?? 0) - damage)
+      if (target.health !== 0) return
+      const chainId = defeatMimic(target, atMs, 0, null, null)
+      clearRefillTracker.request(atMs, chainId)
+    },
+    enqueueEvent: enqueueEffectEvent,
+    getTarget: (targetId, atMs) =>
+      getActiveMimics(atMs).find((mimic) => mimic.id === targetId) ?? null,
+    ringCount,
+  })
 
   const triggerThunder = (event: PendingCardEvent) => {
     const selectedMimics = new Set<number>()
@@ -237,6 +255,7 @@ export function simulateEffectCardCombat(
         'thunder',
         event.readyAtMs,
         event.chainDepth,
+        event.chainId,
       )
     }
   }
@@ -272,6 +291,7 @@ export function simulateEffectCardCombat(
             1_000,
         landing,
         chainDepth: event.chainDepth,
+        chainId: event.chainId,
       })
     }
   }
@@ -310,6 +330,7 @@ export function simulateEffectCardCombat(
         },
         nextDamageAllowedAtMsByTarget: new Map(),
         chainDepth: event.chainDepth,
+        chainId: event.chainId,
       })
     }
   }
@@ -336,6 +357,7 @@ export function simulateEffectCardCombat(
       'tornado',
       event.tickAtMs,
       event.chainDepth,
+      event.chainId,
     )
 
     const nextTickAtMs = Math.min(
@@ -361,6 +383,14 @@ export function simulateEffectCardCombat(
   }
 
   const processEvent = (event: PendingEffectEvent) => {
+    if (event.kind === 'ringStrike') {
+      ringTracker.processStrike(event)
+      return
+    }
+    if (event.kind === 'clearConfirmation') {
+      clearRefillTracker.processConfirmation(event)
+      return
+    }
     if (event.kind === 'meteoriteImpact') {
       meteoriteImpacts += 1
       const activeMimics = getActiveMimics(event.impactAtMs)
@@ -370,6 +400,7 @@ export function simulateEffectCardCombat(
         'meteorite',
         event.impactAtMs,
         event.chainDepth,
+        event.chainId,
       )
       return
     }
@@ -378,6 +409,7 @@ export function simulateEffectCardCombat(
       return
     }
 
+    effectChainTracker.ensure(event.chainId, event.readyAtMs)
     cardsTriggered[event.id] += 1
     maximumEffectChainDepth = Math.max(
       maximumEffectChainDepth,
@@ -406,6 +438,7 @@ export function simulateEffectCardCombat(
       }
       pendingEvents.shift()
       processEvent(event)
+      clearRefillTracker.unlockFinishedEffectChain()
     }
   }
 
@@ -422,12 +455,19 @@ export function simulateEffectCardCombat(
       clickAtMs,
     )
     if (!interval.isAllowed) continue
+    clearRefillTracker.notifyValidManualWeaponDamage()
     target.nextWeaponDamageAllowedAtMs = interval.nextAllowedAtMs
+    const appliedWeaponDamage = Math.min(target.health, weaponDamage)
+    target.weaponDamageTaken += appliedWeaponDamage
     target.health = Math.max(
       0,
-      target.health - combatConfig.initialWeaponDamage,
+      target.health - weaponDamage,
     )
-    if (target.health === 0) defeatMimic(target, clickAtMs, 0, null)
+    if (target.health === 0) {
+      const chainId = defeatMimic(target, clickAtMs, 0, null, null)
+      clearRefillTracker.request(clickAtMs, chainId)
+    }
+    ringTracker.recordAcceptedManualHit(clickAtMs, target.id, weaponDamage)
   }
   processEffectsThrough(roundConfig.durationMs, false)
 
@@ -443,11 +483,18 @@ export function simulateEffectCardCombat(
     meteoriteImpacts,
     tornadoesSpawned,
     maximumEffectChainDepth,
+    ...effectChainTracker.createMetrics(),
+    ...clearRefillTracker.createMetrics(),
+    rare1SurvivorsAfterEffectResolution,
+    rare2SurvivorsAfterEffectResolution,
+    effectDefeatsAfterPriorWeaponDamage,
   }
 }
 
 function eventTime(event: PendingEffectEvent): number {
   if (event.kind === 'card') return event.readyAtMs
   if (event.kind === 'meteoriteImpact') return event.impactAtMs
+  if (event.kind === 'clearConfirmation') return event.confirmAtMs
+  if (event.kind === 'ringStrike') return event.strikeAtMs
   return event.tickAtMs
 }

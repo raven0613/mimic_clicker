@@ -104,7 +104,7 @@
 
 ## 9. config 權責
 
-執行中的裝備數值以 `src/configs/equipmentConfig.ts`、`src/configs/attachedCardConfig.ts`、`src/configs/combatConfig.ts` 與 `src/configs/animationConfig.ts` 為唯一真相。規格只固定欄位語意、公式、合法範圍與時序，不記錄測試用數值；版本化平衡報告可保存當次使用的精確 config 快照。
+執行中的裝備數值以 `src/configs/equipmentConfig.ts`、`src/configs/attachedCardConfig.ts`、`src/configs/combatConfig.ts` 與 `src/configs/animationConfig.ts` 為唯一真相。規格只固定欄位語意、公式、合法範圍與時序，不記錄測試用數值；當前平衡報告直接讀取正式 config，新報告取代舊報告，不保留過時快照。
 
 | config 欄位 | 責任與限制 |
 | --- | --- |

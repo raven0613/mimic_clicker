@@ -77,6 +77,24 @@ export interface SimulatedRound {
   meteoriteImpacts: number
   tornadoesSpawned: number
   maximumEffectChainDepth: number
+  effectChainCount: number
+  maximumDefeatsInEffectChain: number
+  maximumEffectChainClearRatio: number
+  effectChainFullClearCount: number
+  fullClearCount: number
+  refillCount: number
+  refilledMimicCount: number
+  refilledByMimic: Record<MimicId, number>
+  refilledDefeatCount: number
+  refillOrdinaryIncome: number
+  refillEffectCardsGenerated: Record<EffectCardId, number>
+  refillEquipmentCardsGenerated: Record<'sword' | 'ring', number>
+  emptyFieldDurationsMs: number[]
+  suppressedEmptyFieldCount: number
+  repeatedRefillsWithoutInterventionCount: number
+  rare1SurvivorsAfterEffectResolution: number
+  rare2SurvivorsAfterEffectResolution: number
+  effectDefeatsAfterPriorWeaponDamage: number
   swordAdditionalDamage: number
   ringAdditionalDamage: number
   ringDamageStrikes: number
@@ -121,6 +139,7 @@ function simulateRound(
   const initialEquipment =
     balanceSimulationConfig.equipmentLoadouts[equipmentLoadout]
   const swordCount = initialEquipment.filter((id) => id === 'sword').length
+  const ringCount = initialEquipment.filter((id) => id === 'ring').length
   const weaponDamage =
     combatConfig.initialWeaponDamage +
     swordCount * equipmentConfig.sword.weaponDamageBonus
@@ -273,6 +292,8 @@ function simulateRound(
     accuracy,
     random,
     scheduledCardEvents,
+    weaponDamage,
+    ringCount,
   )
   const equipmentRandom = createSeededRandom(seed ^ 0x85ebca6b)
   const equipment = simulateEquipmentCombatRound({
@@ -316,13 +337,25 @@ function simulateRound(
       combatMetrics.additionalDamage.meteorite +
       directMeteoriteHits * calculateInitialMeteoriteDamage(),
   }
+  const generatedByMimic = { ...spawnMetrics.generatedByMimic }
+  for (const mimicId of Object.keys(generatedByMimic) as MimicId[]) {
+    generatedByMimic[mimicId] += combatMetrics.refilledByMimic[mimicId]
+  }
+  const chanceEffectCardsGenerated = addEffectCounts(
+    countEffectCards(chanceGeneratedEffectCardIds),
+    combatMetrics.refillEffectCardsGenerated,
+  )
+  const effectCardsGenerated = addEffectCounts(
+    countEffectCards(generatedEffectCardIds),
+    combatMetrics.refillEffectCardsGenerated,
+  )
   return {
     stage,
     playerModel,
     accuracyModel,
     jackpotCase,
     equipmentLoadout,
-    generatedByMimic: spawnMetrics.generatedByMimic,
+    generatedByMimic,
     initialFieldMimicCount: spawnMetrics.initialFieldMimicCount,
     placementAttempts: spawnMetrics.placementAttempts,
     placementRejections: spawnMetrics.placementRejections,
@@ -333,11 +366,12 @@ function simulateRound(
     jackpotRevealed,
     jackpotDefeated,
     jackpotEscaped: jackpotRevealed && !jackpotDefeated,
-    effectCardEligibleSpawns: spawnMetrics.spawnedMimics.length + 1,
-    chanceEffectCardsGenerated: countEffectCards(
-      chanceGeneratedEffectCardIds,
-    ),
-    effectCardsGenerated: countEffectCards(generatedEffectCardIds),
+    effectCardEligibleSpawns:
+      spawnMetrics.spawnedMimics.length +
+      combatMetrics.refilledMimicCount +
+      1,
+    chanceEffectCardsGenerated,
+    effectCardsGenerated,
     cardsTriggered,
     attackHits,
     additionalDamage,
@@ -363,6 +397,17 @@ function countEffectCards(ids: readonly EffectCardId[]): Record<EffectCardId, nu
     thunder: ids.filter((id) => id === 'thunder').length,
     meteorite: ids.filter((id) => id === 'meteorite').length,
     tornado: ids.filter((id) => id === 'tornado').length,
+  }
+}
+
+function addEffectCounts(
+  first: Record<EffectCardId, number>,
+  second: Record<EffectCardId, number>,
+): Record<EffectCardId, number> {
+  return {
+    thunder: first.thunder + second.thunder,
+    meteorite: first.meteorite + second.meteorite,
+    tornado: first.tornado + second.tornado,
   }
 }
 

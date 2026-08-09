@@ -2,7 +2,7 @@ import { attachedCardConfig } from '../../configs/attachedCardConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
 import type { MimicId, RandomSource, Vector2 } from '../../types/game'
 import {
-  createInitialFieldSpawnArea,
+  createFieldFillSpawnArea,
   selectSpawnPosition,
   selectSpawnPositionsUntilFull,
   selectWeightedMimicId,
@@ -45,7 +45,7 @@ interface CreateTopEdgeRuntimeMimicInput extends RuntimeSpawnContext {
   decorative: boolean
 }
 
-interface CreateInitialFieldRuntimeMimicsInput extends RuntimeSpawnContext {
+interface CreateFieldFillRuntimeMimicsInput extends RuntimeSpawnContext {
   mimicPool: MimicId[]
 }
 
@@ -84,12 +84,13 @@ export class RuntimeMimicSpawner {
     return true
   }
 
-  public prefillInitialField(mimicPool: MimicId[]): void {
-    const entities = createInitialFieldRuntimeMimics({
+  public fillField(mimicPool: MimicId[]): number {
+    const entities = createFieldFillRuntimeMimics({
       ...this.createContext(),
       mimicPool,
     })
     for (const entity of entities) this.addEntity(entity)
+    return entities.length
   }
 
   private createContext(): RuntimeSpawnContext {
@@ -135,15 +136,15 @@ function createTopEdgeRuntimeMimic(
   })
 }
 
-function createInitialFieldRuntimeMimics(
-  input: CreateInitialFieldRuntimeMimicsInput,
+function createFieldFillRuntimeMimics(
+  input: CreateFieldFillRuntimeMimicsInput,
 ): RuntimeMimicEntity[] {
   const positions = selectSpawnPositionsUntilFull(
     {
       fieldWidth: input.fieldSize.x,
       cardWidth: spawnConfig.cardWidthPixels,
       cardHeight: spawnConfig.cardHeightPixels,
-      ...createInitialFieldSpawnArea(input.fieldSize.y),
+      ...createFieldFillSpawnArea(input.fieldSize.y),
       occupiedBounds: createOccupiedBounds(input.entities),
       maximumPositionCount:
         spawnConfig.maximumConcurrentMimics - input.entities.length,

@@ -10,16 +10,16 @@ export const mimicConfigs: Record<MimicId, MimicConfig> = {
   normal: {
     maximumHealth: 20,
     baseReward: 5,
-    spawnWeight: 70,
+    spawnWeight: 65,
   },
   rare1: {
-    maximumHealth: 40,
+    maximumHealth: 50,
     baseReward: 14,
-    spawnWeight: 23,
+    spawnWeight: 25,
   },
   rare2: {
-    maximumHealth: 70,
+    maximumHealth: 100,
     baseReward: 30,
-    spawnWeight: 7,
+    spawnWeight: 10,
   },
 }

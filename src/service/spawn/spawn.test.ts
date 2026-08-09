@@ -5,7 +5,7 @@ import { spawnConfig } from '../../configs/spawnConfig'
 import { createSeededRandom } from '../simulation/createSeededRandom'
 import {
   calculateOverlapRatio,
-  createInitialFieldSpawnArea,
+  createFieldFillSpawnArea,
   selectSpawnPositionsUntilFull,
   selectSpawnPosition,
   selectWeightedMimicId,
@@ -103,16 +103,16 @@ describe('spawn selection', () => {
     })
   })
 
-  it('excludes the configured bottom zone from the initial field area', () => {
+  it('excludes the configured bottom zone from the shared field-fill area', () => {
     const fieldHeight =
-      spawnConfig.initialFieldBottomNoSpawnHeightPixels +
+      spawnConfig.fieldFillBottomNoSpawnHeightPixels +
       spawnConfig.cardHeightPixels * 3
 
-    expect(createInitialFieldSpawnArea(fieldHeight)).toEqual({
+    expect(createFieldFillSpawnArea(fieldHeight)).toEqual({
       minimumY: 0,
       maximumY:
         fieldHeight -
-        spawnConfig.initialFieldBottomNoSpawnHeightPixels -
+        spawnConfig.fieldFillBottomNoSpawnHeightPixels -
         spawnConfig.cardHeightPixels,
     })
   })
@@ -137,8 +137,8 @@ describe('spawn selection', () => {
   })
 
   it('returns no initial placements when the field is too short for a card', () => {
-    const area = createInitialFieldSpawnArea(
-      spawnConfig.initialFieldBottomNoSpawnHeightPixels +
+    const area = createFieldFillSpawnArea(
+      spawnConfig.fieldFillBottomNoSpawnHeightPixels +
         spawnConfig.cardHeightPixels -
         1,
     )

@@ -113,7 +113,7 @@ export function selectSpawnPosition(
   return bestCandidate
 }
 
-export function createInitialFieldSpawnArea(fieldHeight: number): {
+export function createFieldFillSpawnArea(fieldHeight: number): {
   minimumY: number
   maximumY: number
 } {
@@ -121,7 +121,7 @@ export function createInitialFieldSpawnArea(fieldHeight: number): {
     minimumY: 0,
     maximumY:
       fieldHeight -
-      spawnConfig.initialFieldBottomNoSpawnHeightPixels -
+      spawnConfig.fieldFillBottomNoSpawnHeightPixels -
       spawnConfig.cardHeightPixels,
   }
 }

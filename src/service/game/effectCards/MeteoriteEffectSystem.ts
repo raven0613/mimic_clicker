@@ -95,6 +95,14 @@ export class MeteoriteEffectSystem {
     this.explosionPlayer.clear()
   }
 
+  public hasActiveEffects(): boolean {
+    return (
+      this.scheduledMeteorites.length > 0 ||
+      this.activeMeteorites.length > 0 ||
+      this.explosionPlayer.hasActiveEffects()
+    )
+  }
+
   private updateScheduledMeteorites(deltaMs: number): void {
     for (
       let index = this.scheduledMeteorites.length - 1;

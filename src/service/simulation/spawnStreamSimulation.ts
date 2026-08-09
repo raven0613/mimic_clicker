@@ -4,7 +4,7 @@ import { roundConfig } from '../../configs/roundConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
 import type { MimicId, RectangleBounds } from '../../types/game'
 import {
-  createInitialFieldSpawnArea,
+  createFieldFillSpawnArea,
   selectSpawnPosition,
   selectSpawnPositionsUntilFull,
   selectWeightedMimicId,
@@ -40,7 +40,7 @@ export function simulateSpawnStream(
       fieldWidth: balanceSimulationConfig.field.widthPixels,
       cardWidth: spawnConfig.cardWidthPixels,
       cardHeight: spawnConfig.cardHeightPixels,
-      ...createInitialFieldSpawnArea(
+      ...createFieldFillSpawnArea(
         balanceSimulationConfig.field.heightPixels,
       ),
       occupiedBounds: [],

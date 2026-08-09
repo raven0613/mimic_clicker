@@ -68,6 +68,10 @@ export class OneShotSpriteEffectSystem {
     for (const effect of this.activeEffects) destroyAnimatedSprite(effect.sprite)
     this.activeEffects.length = 0
   }
+
+  public hasActiveEffects(): boolean {
+    return this.activeEffects.length > 0
+  }
 }
 
 function destroyAnimatedSprite(sprite: AnimatedSprite): void {

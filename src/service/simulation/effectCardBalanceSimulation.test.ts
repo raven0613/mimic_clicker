@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest'
 import { combatConfig } from '../../configs/combatConfig'
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
 import { effectCardConfig } from '../../configs/effectCardConfig'
+import { equipmentConfig } from '../../configs/equipmentConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import { roundConfig } from '../../configs/roundConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
+import { clearRefillConfig } from '../../configs/clearRefillConfig'
 import type { EffectCardId } from '../game/attachedCards/attachedCardRules'
 import {
   calculateMeteoriteDamageAreaSide,
@@ -148,8 +150,11 @@ describe('effect-card combat simulation', () => {
       landing.y - side / 2 - movementSpeed * (impactAtMs / 1_000)
     target.logicalY = target.initialY
 
+    const survivor = createMimic(1, 100, [], 0, 'rare2')
+    survivor.initialY = target.initialY
+    survivor.logicalY = target.logicalY
     const metrics = simulateEffectCardCombat(
-      [target],
+      [target, survivor],
       0,
       clickRate,
       1,
@@ -338,5 +343,54 @@ describe('effect-card combat simulation', () => {
     )
 
     expect(metrics.defeats.thunder).toBe(1)
+  })
+
+  it('refills through the shared field fill after a confirmed full clear', () => {
+    const metrics = simulateEffectCardCombat(
+      [createMimic(0, 100, [])],
+      ownerHitCount,
+      clickRate,
+      1,
+      () => 0.5,
+    )
+
+    expect(metrics.fullClearCount).toBe(1)
+    expect(metrics.refillCount).toBe(1)
+    expect(metrics.refilledMimicCount).toBeGreaterThan(0)
+    expect(metrics.emptyFieldDurationsMs).toEqual([
+      clearRefillConfig.confirmationDelayMs,
+    ])
+    expect(metrics.repeatedRefillsWithoutInterventionCount).toBe(0)
+  })
+
+  it('includes configured Ring strikes in the clear-refill combat timeline', () => {
+    const createRingTarget = () => {
+      const target = createMimic(0, 100, [])
+      target.health =
+        combatConfig.initialWeaponDamage *
+        (equipmentConfig.ring.acceptedManualHitsPerTrigger + 1)
+      return target
+    }
+    const clickBudget = equipmentConfig.ring.acceptedManualHitsPerTrigger
+    const withoutRing = simulateEffectCardCombat(
+      [createRingTarget()],
+      clickBudget,
+      clickRate,
+      1,
+      () => 0.5,
+    )
+    const withRing = simulateEffectCardCombat(
+      [createRingTarget()],
+      clickBudget,
+      clickRate,
+      1,
+      () => 0.5,
+      [],
+      combatConfig.initialWeaponDamage,
+      1,
+    )
+
+    expect(withoutRing.defeatedByMimic.normal).toBe(0)
+    expect(withRing.defeatedByMimic.normal).toBe(1)
   })
 })

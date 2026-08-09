@@ -10,6 +10,10 @@ import type {
   StageKey,
 } from './balanceSimulation'
 import type { EquipmentCounts } from './equipmentBalanceSimulation'
+import {
+  createClearRefillBalanceMetrics,
+  type ClearRefillBalanceMetrics,
+} from './clearRefillBalanceReport'
 
 export interface BalanceSimulationReport {
   configVersion: string
@@ -44,6 +48,7 @@ export interface BalanceSimulationReport {
     tornadoesSpawned: number
     maximumChainDepth: number
   }
+  clearRefillMetrics: ClearRefillBalanceMetrics
   equipmentMetrics: {
     averageVisibleGeneratedPerRound: EquipmentCounts
     averageHiddenGeneratedPerRound: EquipmentCounts
@@ -143,6 +148,7 @@ export function createBalanceSimulationReport(
         ...rounds.map((round) => round.maximumEffectChainDepth),
       ),
     },
+    clearRefillMetrics: createClearRefillBalanceMetrics(rounds),
     equipmentMetrics: createEquipmentMetrics(rounds),
     unfinishedRoundCount: rounds.filter((round) => !round.finished).length,
     summary: '',
@@ -369,6 +375,7 @@ function divideByRoundCount(
 function createSummary(report: BalanceSimulationReport): string {
   const metrics = report.effectCardMetrics
   const equipment = report.equipmentMetrics
+  const clearRefill = report.clearRefillMetrics
   return [
     `Balance ${report.configVersion}: ${report.caseCount} deterministic cases`,
     `placement rejection max ${(report.maximumPlacementRejectionRatio * 100).toFixed(1)}%`,
@@ -380,6 +387,8 @@ function createSummary(report: BalanceSimulationReport): string {
     `Meteorite ${(metrics.carrierRate.meteorite * 100).toFixed(1)}% carriers / ${metrics.averageCardsGeneratedPerRound.meteorite.toFixed(2)} attached / ${metrics.averageCardsTriggeredPerRound.meteorite.toFixed(2)} triggered / ${metrics.averageHitsPerTrigger.meteorite.toFixed(2)} hits / ${metrics.averageDamagePerTrigger.meteorite.toFixed(1)} damage / ${metrics.defeats.meteorite} defeats / ${metrics.meteoritesLaunched} launched / ${metrics.meteoriteImpacts} impacts`,
     `Tornado ${(metrics.carrierRate.tornado * 100).toFixed(1)}% carriers / ${metrics.averageCardsGeneratedPerRound.tornado.toFixed(2)} attached / ${metrics.averageCardsTriggeredPerRound.tornado.toFixed(2)} triggered / ${metrics.averageHitsPerTrigger.tornado.toFixed(2)} hits / ${metrics.averageDamagePerTrigger.tornado.toFixed(1)} damage / ${metrics.defeats.tornado} defeats / ${metrics.tornadoesSpawned} spawned`,
     `effect chain ${metrics.maximumChainDepth}`,
+    `clear ${clearRefill.averageFullClearsPerRound.toFixed(2)} / refill ${clearRefill.averageRefillsPerRound.toFixed(2)} per round / empty p90 ${clearRefill.p90EmptyFieldDurationMs.toFixed(0)}ms / refill total income +${(clearRefill.refillTotalIncomeIncreaseRatio * 100).toFixed(1)}%`,
+    `clear profiles ${clearRefill.profileAverageFullClears.weak.toFixed(2)} → ${clearRefill.profileAverageFullClears.standard.toFixed(2)} → ${clearRefill.profileAverageFullClears.strong.toFixed(2)}`,
     `equipment drops sword ${equipment.averageSuccessfulDropsPerRound.sword.toFixed(2)} / ring ${equipment.averageSuccessfulDropsPerRound.ring.toFixed(2)} per round`,
     `equipment slot activation ${equipment.averageActivationTimeMs.toFixed(0)}ms`,
     `loadout damage sword×2 ${equipment.averageAdditionalDamageByLoadout.duplicateSword.sword.toFixed(1)} / ring×2 ${equipment.averageAdditionalDamageByLoadout.duplicateRing.ring.toFixed(1)}`,

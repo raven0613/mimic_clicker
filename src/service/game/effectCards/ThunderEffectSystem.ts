@@ -66,6 +66,10 @@ export class ThunderEffectSystem {
     this.player.clear()
   }
 
+  public hasActiveEffects(): boolean {
+    return this.player.hasActiveEffects()
+  }
+
   private addAnimation(position: Vector2): void {
     const config = effectCardConfig.thunder
     this.player.add({

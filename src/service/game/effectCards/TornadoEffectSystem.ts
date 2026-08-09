@@ -97,6 +97,10 @@ export class TornadoEffectSystem {
     this.activeTornadoes.length = 0
   }
 
+  public hasActiveEffects(): boolean {
+    return this.activeTornadoes.length > 0
+  }
+
   private addTornado(position: Vector2, direction: Vector2): void {
     const displaySize = calculateTornadoDisplaySize()
     const sprite = new AnimatedSprite({
