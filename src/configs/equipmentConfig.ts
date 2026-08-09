@@ -1,9 +1,10 @@
+import type { AttachedCardRarity } from './attachedCardConfig'
+
 export type EquipmentId = 'sword' | 'ring'
-export type EquipmentRarity = 'normal' | 'sr'
 
 export interface EquipmentDefinition {
   id: EquipmentId
-  rarity: EquipmentRarity
+  rarity: AttachedCardRarity
   carrierSpawnChance: number
 }
 
@@ -12,8 +13,11 @@ export const equipmentConfig = {
   visibleAttachmentDropChance: 0.85,
   hiddenDropRarityChances: {
     none: 0.88,
-    normal: 0.1,
-    sr: 0.02,
+    N: 0.1,
+    R: 0,
+    SR: 0.02,
+    SSR: 0,
+    UR: 0,
   },
   sword: {
     carrierSpawnChance: 0.07,
@@ -35,12 +39,12 @@ export const equipmentConfig = {
 export const equipmentDefinitions = [
   {
     id: 'sword',
-    rarity: 'normal',
+    rarity: 'N',
     carrierSpawnChance: equipmentConfig.sword.carrierSpawnChance,
   },
   {
     id: 'ring',
-    rarity: 'sr',
+    rarity: 'SR',
     carrierSpawnChance: equipmentConfig.ring.carrierSpawnChance,
   },
 ] as const satisfies readonly EquipmentDefinition[]

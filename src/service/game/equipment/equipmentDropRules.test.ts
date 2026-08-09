@@ -6,8 +6,8 @@ import { selectVisibleEquipmentDrops } from './equipmentDropRules'
 
 describe('equipment drop rules', () => {
   it('rolls every visible attachment independently and rejects the boundary', () => {
-    const sword = { kind: 'equipment', id: 'sword', rarity: 'normal' }
-    const ring = { kind: 'equipment', id: 'ring', rarity: 'sr' }
+    const sword = { kind: 'equipment', id: 'sword', rarity: 'N' }
+    const ring = { kind: 'equipment', id: 'ring', rarity: 'SR' }
 
     const result = selectVisibleEquipmentDrops(
       [sword, ring] as EquipmentCardAttachment[],

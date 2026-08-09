@@ -71,6 +71,7 @@ export interface SimulatedRound {
   thunderStrikesTriggered: number
   meteoritesLaunched: number
   meteoriteImpacts: number
+  tornadoesSpawned: number
   maximumEffectChainDepth: number
   swordAdditionalDamage: number
   ringAdditionalDamage: number
@@ -325,6 +326,10 @@ function simulateRound(
           id === 'meteorite' ? shellMeteoriteLandings : undefined,
         meteoriteLaunchOffsetsMs:
           id === 'meteorite' ? shellMeteoriteLaunchOffsets : undefined,
+        sourcePosition: {
+          x: balanceSimulationConfig.field.widthPixels / 2,
+          y: balanceSimulationConfig.field.heightPixels / 2,
+        },
       })
     }
   }
@@ -335,6 +340,10 @@ function simulateRound(
         id,
         readyAtMs: jackpotDefeatAtMs + effectCardConfig.ejection.durationMs,
         chainDepth: 1,
+        sourcePosition: {
+          x: balanceSimulationConfig.field.widthPixels / 2,
+          y: balanceSimulationConfig.field.heightPixels / 2,
+        },
       })
     }
   }
@@ -420,6 +429,7 @@ function simulateRound(
         effectCardConfig.thunder.initialStrikeCount,
     meteoritesLaunched: combatMetrics.meteoritesLaunched,
     meteoriteImpacts: combatMetrics.meteoriteImpacts,
+    tornadoesSpawned: combatMetrics.tornadoesSpawned,
     maximumEffectChainDepth: combatMetrics.maximumEffectChainDepth,
     swordAdditionalDamage: equipment.swordAdditionalDamage,
     ringAdditionalDamage: equipment.ringAdditionalDamage,
@@ -433,6 +443,7 @@ function countEffectCards(ids: readonly EffectCardId[]): Record<EffectCardId, nu
   return {
     thunder: ids.filter((id) => id === 'thunder').length,
     meteorite: ids.filter((id) => id === 'meteorite').length,
+    tornado: ids.filter((id) => id === 'tornado').length,
   }
 }
 

@@ -1,14 +1,14 @@
 import {
   attachedCardConfig,
+  attachedCardRarities,
   type AttachedCardFrameId,
-  type EffectCardRarity,
+  type AttachedCardRarity,
 } from '../../../configs/attachedCardConfig'
 import { effectCardDefinitions } from '../../../configs/effectCardConfig'
 import {
   equipmentConfig,
   equipmentDefinitions,
   type EquipmentId,
-  type EquipmentRarity,
 } from '../../../configs/equipmentConfig'
 import type { RandomSource } from '../../../types/game'
 
@@ -18,13 +18,13 @@ export interface EffectAttachedCardAssignment {
   kind: 'effect'
   id: EffectCardId
   frameId: AttachedCardFrameId
-  rarity: EffectCardRarity
+  rarity: AttachedCardRarity
 }
 
 export interface EquipmentAttachedCardAssignment {
   kind: 'equipment'
   id: EquipmentId
-  rarity: EquipmentRarity
+  rarity: AttachedCardRarity
 }
 
 export type AttachedCardAssignment =
@@ -80,10 +80,15 @@ export function selectHiddenEquipmentId(
   const chances = equipmentConfig.hiddenDropRarityChances
   validateProbabilityDistribution(chances, 'Hidden equipment rarity')
   const rarityRoll = normalizeRandom(random())
-  let rarity: EquipmentRarity | null = null
-  if (rarityRoll >= chances.none) {
-    rarity =
-      rarityRoll < chances.none + chances.normal ? 'normal' : 'sr'
+  if (rarityRoll < chances.none) return null
+  let rarity: AttachedCardRarity | null = null
+  let cumulativeChance = chances.none
+  for (const candidateRarity of attachedCardRarities) {
+    cumulativeChance += chances[candidateRarity]
+    if (rarityRoll < cumulativeChance) {
+      rarity = candidateRarity
+      break
+    }
   }
   if (rarity === null) return null
 

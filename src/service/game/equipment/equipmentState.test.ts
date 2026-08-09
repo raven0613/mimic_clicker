@@ -9,9 +9,9 @@ describe('equipment state', () => {
     const state = new EquipmentState()
 
     const [firstSword, ring, secondSword] = state.reserveDrops([
-      { id: 'sword', rarity: 'normal' },
-      { id: 'ring', rarity: 'sr' },
-      { id: 'sword', rarity: 'normal' },
+      { id: 'sword', rarity: 'N' },
+      { id: 'ring', rarity: 'SR' },
+      { id: 'sword', rarity: 'N' },
     ])
 
     expect(ring.destination).toEqual({ type: 'slot', slotIndex: 0 })
@@ -24,9 +24,9 @@ describe('equipment state', () => {
   it('activates only completed slot reservations and keeps backpack inactive', () => {
     const state = new EquipmentState()
     const [sword, ring, storedSword] = state.reserveDrops([
-      { id: 'sword', rarity: 'normal' },
-      { id: 'ring', rarity: 'sr' },
-      { id: 'sword', rarity: 'normal' },
+      { id: 'sword', rarity: 'N' },
+      { id: 'ring', rarity: 'SR' },
+      { id: 'sword', rarity: 'N' },
     ])
 
     state.completeReservation(sword.reservationId)
@@ -44,8 +44,8 @@ describe('equipment state', () => {
   it('stacks duplicate Swords additively', () => {
     const state = new EquipmentState()
     const reservations = state.reserveDrops([
-      { id: 'sword', rarity: 'normal' },
-      { id: 'sword', rarity: 'normal' },
+      { id: 'sword', rarity: 'N' },
+      { id: 'sword', rarity: 'N' },
     ])
     for (const reservation of reservations) {
       state.completeReservation(reservation.reservationId)
@@ -60,8 +60,8 @@ describe('equipment state', () => {
   it('queues one delayed sequential strike per equipped Ring', () => {
     const state = new EquipmentState()
     const reservations = state.reserveDrops([
-      { id: 'ring', rarity: 'sr' },
-      { id: 'ring', rarity: 'sr' },
+      { id: 'ring', rarity: 'SR' },
+      { id: 'ring', rarity: 'SR' },
     ])
     for (const reservation of reservations) {
       state.completeReservation(reservation.reservationId)
@@ -100,7 +100,7 @@ describe('equipment state', () => {
 
   it('shares the Ring hit counter across targets and locks the triggering one', () => {
     const state = new EquipmentState()
-    const [ring] = state.reserveDrops([{ id: 'ring', rarity: 'sr' }])
+    const [ring] = state.reserveDrops([{ id: 'ring', rarity: 'SR' }])
     state.completeReservation(ring.reservationId)
     for (
       let hitIndex = 1;
@@ -125,8 +125,8 @@ describe('equipment state', () => {
   it('preserves ticker overshoot between sequential Ring strikes', () => {
     const state = new EquipmentState()
     const reservations = state.reserveDrops([
-      { id: 'ring', rarity: 'sr' },
-      { id: 'ring', rarity: 'sr' },
+      { id: 'ring', rarity: 'SR' },
+      { id: 'ring', rarity: 'SR' },
     ])
     for (const reservation of reservations) {
       state.completeReservation(reservation.reservationId)
@@ -149,7 +149,7 @@ describe('equipment state', () => {
 
   it('does not settle a Ring strike exactly on an excluded round endpoint', () => {
     const state = new EquipmentState()
-    const [ring] = state.reserveDrops([{ id: 'ring', rarity: 'sr' }])
+    const [ring] = state.reserveDrops([{ id: 'ring', rarity: 'SR' }])
     state.completeReservation(ring.reservationId)
     queueRingBatch(state, 8)
 
@@ -163,7 +163,7 @@ describe('equipment state', () => {
 
   it('cancels only the invalid target batch and clears all round state', () => {
     const state = new EquipmentState()
-    const [ring] = state.reserveDrops([{ id: 'ring', rarity: 'sr' }])
+    const [ring] = state.reserveDrops([{ id: 'ring', rarity: 'SR' }])
     state.completeReservation(ring.reservationId)
 
     queueRingBatch(state, 3)

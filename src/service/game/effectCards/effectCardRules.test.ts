@@ -6,6 +6,7 @@ import {
   advanceEffectCardWindup,
   calculateInitialMeteoriteDamage,
   calculateInitialThunderDamage,
+  calculateInitialTornadoDamage,
 } from './effectCardRules'
 
 describe('effect card rules', () => {
@@ -20,6 +21,13 @@ describe('effect card rules', () => {
     expect(calculateInitialMeteoriteDamage()).toBe(
       combatConfig.initialWeaponDamage *
         effectCardConfig.meteorite.initialWeaponDamageMultiplier,
+    )
+  })
+
+  it('derives tornado damage from the initial weapon damage', () => {
+    expect(calculateInitialTornadoDamage()).toBe(
+      combatConfig.initialWeaponDamage *
+        effectCardConfig.tornado.initialWeaponDamageMultiplier,
     )
   })
 

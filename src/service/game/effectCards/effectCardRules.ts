@@ -20,6 +20,13 @@ export function calculateInitialMeteoriteDamage(): number {
   )
 }
 
+export function calculateInitialTornadoDamage(): number {
+  return (
+    combatConfig.initialWeaponDamage *
+    effectCardConfig.tornado.initialWeaponDamageMultiplier
+  )
+}
+
 export function advanceEffectCardWindup(
   elapsedMs: number,
   deltaMs: number,

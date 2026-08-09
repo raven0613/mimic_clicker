@@ -121,6 +121,12 @@ export class RuntimeEffectSystems {
     this.effectCards.cancelUnresolved()
   }
 
+  public resetEffectCardDamageIntervals(
+    target: RuntimeMimicEntity,
+  ): void {
+    this.effectCards.resetTargetDamageInterval(target)
+  }
+
   public clear(): void {
     this.equipment.clear()
     this.effectCards.clear()

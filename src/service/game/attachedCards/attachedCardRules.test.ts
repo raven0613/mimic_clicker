@@ -28,6 +28,7 @@ describe('attached card rules', () => {
     const candidateRolls = [
       effectCardConfig.thunder.carrierSpawnChance / 2,
       1,
+      1,
       equipmentConfig.sword.carrierSpawnChance / 2,
       1,
     ]
@@ -39,7 +40,7 @@ describe('attached card rules', () => {
         random: sequenceRandom([...candidateRolls, 0]),
       }),
     ).toEqual([
-      { kind: 'effect', id: 'thunder', frameId: 'normal', rarity: 'normal' },
+      { kind: 'effect', id: 'thunder', frameId: 'normal', rarity: 'N' },
     ])
     expect(
       selectAttachedCardAssignments({
@@ -48,7 +49,7 @@ describe('attached card rules', () => {
         random: sequenceRandom([...candidateRolls, 0.999]),
       }),
     ).toEqual([
-      { kind: 'equipment', id: 'sword', rarity: 'normal' },
+      { kind: 'equipment', id: 'sword', rarity: 'N' },
     ])
   })
 
@@ -61,29 +62,32 @@ describe('attached card rules', () => {
     expect(
       new Set(assignments.map(({ kind, id }) => `${kind}:${id}`)).size,
     ).toBe(assignments.length)
-    expect(assignments.some(({ kind }) => kind === 'effect')).toBe(true)
-    expect(assignments.some(({ kind }) => kind === 'equipment')).toBe(true)
+    expect(
+      assignments.filter(({ kind }) => kind === 'effect'),
+    ).toHaveLength(attachedCardConfig.capacity.jackpot.minimum)
   })
 
   it('selects at most one hidden item and excludes visible equipment ids', () => {
     const hiddenRarity = equipmentConfig.hiddenDropRarityChances
-    const normalRoll =
-      hiddenRarity.none + hiddenRarity.normal / 2
+    const nRoll = hiddenRarity.none + hiddenRarity.N / 2
     const srRoll =
-      hiddenRarity.none + hiddenRarity.normal + hiddenRarity.sr / 2
+      hiddenRarity.none +
+      hiddenRarity.N +
+      hiddenRarity.R +
+      hiddenRarity.SR / 2
 
     expect(
       selectHiddenEquipmentId(
         false,
         [],
-        sequenceRandom([normalRoll, 0]),
+        sequenceRandom([nRoll, 0]),
       ),
     ).toBe('sword')
     expect(
       selectHiddenEquipmentId(
         false,
         ['sword'],
-        sequenceRandom([normalRoll]),
+        sequenceRandom([nRoll]),
       ),
     ).toBeNull()
     expect(
@@ -93,6 +97,16 @@ describe('attached card rules', () => {
         sequenceRandom([srRoll, 0]),
       ),
     ).toBe('ring')
+  })
+
+  it('keeps the configured none interval free of hidden equipment', () => {
+    expect(
+      selectHiddenEquipmentId(
+        false,
+        [],
+        () => equipmentConfig.hiddenDropRarityChances.none / 2,
+      ),
+    ).toBeNull()
   })
 })
 

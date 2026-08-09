@@ -12,6 +12,9 @@ describe('horizontal sprite sheet slicing', () => {
     ['thunder', effectCardConfig.thunder.spriteSheet],
     ['meteorite', effectCardConfig.meteorite.spriteSheet],
     ['explosion', effectCardConfig.meteorite.explosionSpriteSheet],
+    ['tornado start', effectCardConfig.tornado.spriteSheets.start],
+    ['tornado run', effectCardConfig.tornado.spriteSheets.run],
+    ['tornado end', effectCardConfig.tornado.spriteSheets.end],
   ])('creates every configured frame for %s', (_name, sheet) => {
     const frames = createHorizontalSpriteSheetFrameRectangles(
       sheet.sourceWidthPixels,

@@ -9,6 +9,7 @@ import { advanceEffectCardWindup } from './effectCardRules'
 import type { EffectCardAttachment } from '../attachedCards/attachedCardVisual'
 import { MeteoriteEffectSystem } from './MeteoriteEffectSystem'
 import { ThunderEffectSystem } from './ThunderEffectSystem'
+import { TornadoEffectSystem } from './TornadoEffectSystem'
 
 interface PendingEffectCard {
   attachment: EffectCardAttachment
@@ -25,6 +26,7 @@ export class EffectCardSystem {
   private readonly pendingCards: PendingEffectCard[] = []
   private readonly thunderSystem: ThunderEffectSystem
   private readonly meteoriteSystem: MeteoriteEffectSystem
+  private readonly tornadoSystem: TornadoEffectSystem
   private readonly textures: LoadedEffectCardTextures
 
   public constructor(
@@ -45,6 +47,14 @@ export class EffectCardSystem {
       damageTarget,
     )
     this.meteoriteSystem = new MeteoriteEffectSystem(
+      this.layer,
+      textures,
+      random,
+      getFieldSize,
+      getTargets,
+      damageTarget,
+    )
+    this.tornadoSystem = new TornadoEffectSystem(
       this.layer,
       textures,
       random,
@@ -78,6 +88,7 @@ export class EffectCardSystem {
   public update(deltaMs: number): void {
     this.thunderSystem.update(deltaMs)
     this.meteoriteSystem.update(deltaMs)
+    this.tornadoSystem.update(deltaMs)
     const readyCards: PendingEffectCard[] = []
     for (let index = this.pendingCards.length - 1; index >= 0; index -= 1) {
       const pending = this.pendingCards[index]
@@ -98,6 +109,7 @@ export class EffectCardSystem {
     }
     this.pendingCards.length = 0
     this.meteoriteSystem.cancelUnresolved()
+    this.tornadoSystem.clear()
   }
 
   public clear(): void {
@@ -113,6 +125,13 @@ export class EffectCardSystem {
     destroySpriteSheetFrameTextures(this.textures.thunderFrames)
     destroySpriteSheetFrameTextures(this.textures.meteoriteFrames)
     destroySpriteSheetFrameTextures(this.textures.explosionFrames)
+    destroySpriteSheetFrameTextures(this.textures.tornadoStartFrames)
+    destroySpriteSheetFrameTextures(this.textures.tornadoRunFrames)
+    destroySpriteSheetFrameTextures(this.textures.tornadoEndFrames)
+  }
+
+  public resetTargetDamageInterval(target: RuntimeMimicEntity): void {
+    this.tornadoSystem.resetTargetDamageInterval(target)
   }
 
   private dispatch(pending: PendingEffectCard): void {
@@ -122,7 +141,16 @@ export class EffectCardSystem {
       this.thunderSystem.trigger({ x: pending.sourceX, y: pending.sourceY })
       return
     }
-    this.meteoriteSystem.trigger()
+    if (id === 'meteorite') {
+      this.meteoriteSystem.trigger()
+      return
+    }
+    if (id === 'tornado') {
+      this.tornadoSystem.trigger({ x: pending.sourceX, y: pending.sourceY })
+      return
+    }
+    const unreachableId: never = id
+    throw new Error(`Unsupported effect card id: ${unreachableId}`)
   }
 
   private updateEjectionVisual(pending: PendingEffectCard): void {

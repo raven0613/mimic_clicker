@@ -399,6 +399,7 @@ export class PixiGameRuntime {
   private revealJackpot(entity: RuntimeMimicEntity): void {
     if (!this.textures) return
     revealRuntimeJackpot(entity, this.textures.jackpot, this.random)
+    this.effectSystems?.resetEffectCardDamageIntervals(entity)
     if (this.attachedCardTextures) {
       assignJackpotRuntimeAttachedCards(
         entity,

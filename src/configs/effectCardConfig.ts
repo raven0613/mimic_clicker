@@ -1,6 +1,6 @@
 import type {
   AttachedCardFrameId,
-  EffectCardRarity,
+  AttachedCardRarity,
 } from './attachedCardConfig'
 
 export const effectCardConfig = {
@@ -54,24 +54,73 @@ export const effectCardConfig = {
       frameCount: 6,
     },
   },
+  tornado: {
+    carrierSpawnChance: 0.06,
+    initialTornadoCount: 1,
+    initialWeaponDamageMultiplier: 0.5,
+    displayScale: 0.75,
+    damageAreaHeightRatio: 0.65,
+    damageIntervalPerTargetMs: 500,
+    startAnimationDurationMs: 400,
+    runAnimationCycleDurationMs: 240,
+    runDurationMs: 3_000,
+    endAnimationDurationMs: 400,
+    movementSpeedPixelsPerSecond: 140,
+    minimumTurnIntervalMs: 500,
+    maximumTurnIntervalMs: 1_000,
+    maximumTurnRadians: Math.PI / 3,
+    multipleSpawnDirectionJitterRadians: Math.PI / 18,
+    spriteSheets: {
+      start: {
+        assetLabel: 'effects/tornado_start',
+        sourceWidthPixels: 600,
+        sourceHeightPixels: 265,
+        frameWidthPixels: 120,
+        frameHeightPixels: 265,
+        frameCount: 5,
+      },
+      run: {
+        assetLabel: 'effects/tornado_run',
+        sourceWidthPixels: 360,
+        sourceHeightPixels: 265,
+        frameWidthPixels: 120,
+        frameHeightPixels: 265,
+        frameCount: 3,
+      },
+      end: {
+        assetLabel: 'effects/tornado_end',
+        sourceWidthPixels: 600,
+        sourceHeightPixels: 265,
+        frameWidthPixels: 120,
+        frameHeightPixels: 265,
+        frameCount: 5,
+      },
+    },
+  },
 } as const
 
 export const effectCardDefinitions = [
   {
     id: 'thunder',
     frameId: 'normal',
-    rarity: 'normal',
+    rarity: 'N',
     chance: effectCardConfig.thunder.carrierSpawnChance,
   },
   {
     id: 'meteorite',
     frameId: 'normal',
-    rarity: 'ssr',
+    rarity: 'UR',
     chance: effectCardConfig.meteorite.carrierSpawnChance,
   },
+  {
+    id: 'tornado',
+    frameId: 'normal',
+    rarity: 'SR',
+    chance: effectCardConfig.tornado.carrierSpawnChance,
+  },
 ] as const satisfies readonly {
-  id: 'thunder' | 'meteorite'
+  id: 'thunder' | 'meteorite' | 'tornado'
   frameId: AttachedCardFrameId
-  rarity: EffectCardRarity
+  rarity: AttachedCardRarity
   chance: number
 }[]

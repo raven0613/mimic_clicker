@@ -40,6 +40,7 @@ export interface BalanceSimulationReport {
     thunderStrikesTriggered: number
     meteoritesLaunched: number
     meteoriteImpacts: number
+    tornadoesSpawned: number
     maximumChainDepth: number
   }
   equipmentMetrics: {
@@ -113,6 +114,7 @@ export function createBalanceSimulationReport(
       carrierRate: {
         thunder: chanceCardsGenerated.thunder / eligibleSpawns,
         meteorite: chanceCardsGenerated.meteorite / eligibleSpawns,
+        tornado: chanceCardsGenerated.tornado / eligibleSpawns,
       },
       cardsGenerated,
       cardsTriggered,
@@ -135,6 +137,7 @@ export function createBalanceSimulationReport(
       ),
       meteoritesLaunched: sum(rounds.map((round) => round.meteoritesLaunched)),
       meteoriteImpacts: sum(rounds.map((round) => round.meteoriteImpacts)),
+      tornadoesSpawned: sum(rounds.map((round) => round.tornadoesSpawned)),
       maximumChainDepth: Math.max(
         ...rounds.map((round) => round.maximumEffectChainDepth),
       ),
@@ -327,9 +330,10 @@ function sumEffectMetric(
       const metric = select(round)
       totals.thunder += metric.thunder
       totals.meteorite += metric.meteorite
+      totals.tornado += metric.tornado
       return totals
     },
-    { thunder: 0, meteorite: 0 },
+    { thunder: 0, meteorite: 0, tornado: 0 },
   )
 }
 
@@ -340,6 +344,7 @@ function divideEffectMetrics(
   return {
     thunder: numerator.thunder / Math.max(1, denominator.thunder),
     meteorite: numerator.meteorite / Math.max(1, denominator.meteorite),
+    tornado: numerator.tornado / Math.max(1, denominator.tornado),
   }
 }
 
@@ -350,6 +355,7 @@ function divideByRoundCount(
   return {
     thunder: metric.thunder / roundCount,
     meteorite: metric.meteorite / roundCount,
+    tornado: metric.tornado / roundCount,
   }
 }
 
@@ -364,6 +370,7 @@ function createSummary(report: BalanceSimulationReport): string {
     `baseline target Jackpot defeat ${(report.targetProfileJackpotDefeatRate * 100).toFixed(1)}%`,
     `Thunder ${(metrics.carrierRate.thunder * 100).toFixed(1)}% carriers / ${metrics.averageCardsGeneratedPerRound.thunder.toFixed(2)} attached / ${metrics.averageCardsTriggeredPerRound.thunder.toFixed(2)} triggered / ${metrics.averageHitsPerTrigger.thunder.toFixed(2)} hits / ${metrics.averageDamagePerTrigger.thunder.toFixed(1)} damage / ${metrics.defeats.thunder} defeats`,
     `Meteorite ${(metrics.carrierRate.meteorite * 100).toFixed(1)}% carriers / ${metrics.averageCardsGeneratedPerRound.meteorite.toFixed(2)} attached / ${metrics.averageCardsTriggeredPerRound.meteorite.toFixed(2)} triggered / ${metrics.averageHitsPerTrigger.meteorite.toFixed(2)} hits / ${metrics.averageDamagePerTrigger.meteorite.toFixed(1)} damage / ${metrics.defeats.meteorite} defeats / ${metrics.meteoritesLaunched} launched / ${metrics.meteoriteImpacts} impacts`,
+    `Tornado ${(metrics.carrierRate.tornado * 100).toFixed(1)}% carriers / ${metrics.averageCardsGeneratedPerRound.tornado.toFixed(2)} attached / ${metrics.averageCardsTriggeredPerRound.tornado.toFixed(2)} triggered / ${metrics.averageHitsPerTrigger.tornado.toFixed(2)} hits / ${metrics.averageDamagePerTrigger.tornado.toFixed(1)} damage / ${metrics.defeats.tornado} defeats / ${metrics.tornadoesSpawned} spawned`,
     `effect chain ${metrics.maximumChainDepth}`,
     `equipment drops sword ${equipment.averageSuccessfulDropsPerRound.sword.toFixed(2)} / ring ${equipment.averageSuccessfulDropsPerRound.ring.toFixed(2)} per round`,
     `equipment slot activation ${equipment.averageActivationTimeMs.toFixed(0)}ms`,

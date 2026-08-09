@@ -1,12 +1,12 @@
+import type { AttachedCardRarity } from '../../../configs/attachedCardConfig'
 import {
   equipmentConfig,
   type EquipmentId,
-  type EquipmentRarity,
 } from '../../../configs/equipmentConfig'
 
 export interface EquipmentDrop {
   id: EquipmentId
-  rarity: EquipmentRarity
+  rarity: AttachedCardRarity
 }
 
 export type EquipmentDestination =
@@ -34,9 +34,12 @@ type EquipmentSlot =
   | { status: 'reserved'; reservationId: number }
   | { status: 'equipped'; id: EquipmentId }
 
-const rarityPriority: Record<EquipmentRarity, number> = {
-  normal: 0,
-  sr: 1,
+const rarityPriority: Record<AttachedCardRarity, number> = {
+  N: 0,
+  R: 1,
+  SR: 2,
+  SSR: 3,
+  UR: 4,
 }
 
 export class EquipmentState {

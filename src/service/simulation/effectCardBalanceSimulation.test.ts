@@ -12,6 +12,7 @@ import {
   createMeteoriteTrajectory,
 } from '../game/effectCards/meteoriteRules'
 import {
+  calculateInitialTornadoDamage,
   calculateInitialThunderDamage,
 } from '../game/effectCards/effectCardRules'
 import {
@@ -200,6 +201,69 @@ describe('effect-card combat simulation', () => {
     expect(metrics.meteoritesLaunched).toBe(1)
     expect(metrics.meteoriteImpacts).toBe(0)
     expect(metrics.attackHits.meteorite).toBe(0)
+  })
+
+  it('simulates moving tornado contact damage and linked-card windup', () => {
+    const target = createMimic(
+      0,
+      balanceSimulationConfig.field.widthPixels / 2,
+      ['thunder'],
+    )
+    target.initialY = balanceSimulationConfig.field.heightPixels / 2
+    target.logicalY = target.initialY
+    target.health = calculateInitialTornadoDamage()
+
+    const metrics = simulateEffectCardCombat(
+      [target],
+      0,
+      clickRate,
+      1,
+      () => 0.25,
+      [
+        {
+          id: 'tornado',
+          readyAtMs: 0,
+          chainDepth: 1,
+          sourcePosition: {
+            x: target.logicalX,
+            y: target.logicalY,
+          },
+        },
+      ],
+    )
+
+    expect(metrics.cardsTriggered.tornado).toBe(1)
+    expect(metrics.tornadoesSpawned).toBe(
+      effectCardConfig.tornado.initialTornadoCount,
+    )
+    expect(metrics.attackHits.tornado).toBe(1)
+    expect(metrics.defeats.tornado).toBe(1)
+    expect(metrics.cardsTriggered.thunder).toBe(1)
+    expect(metrics.maximumEffectChainDepth).toBe(2)
+  })
+
+  it('does not apply tornado run damage after the round timer', () => {
+    const target = createMimic(0, 640, [])
+    const metrics = simulateEffectCardCombat(
+      [target],
+      0,
+      clickRate,
+      1,
+      () => 0.25,
+      [
+        {
+          id: 'tornado',
+          readyAtMs:
+            roundConfig.durationMs -
+            effectCardConfig.tornado.startAnimationDurationMs,
+          chainDepth: 1,
+          sourcePosition: { x: target.logicalX, y: target.logicalY },
+        },
+      ],
+    )
+
+    expect(metrics.cardsTriggered.tornado).toBe(1)
+    expect(metrics.attackHits.tornado).toBe(0)
   })
 
   it('does not trigger a card whose windup completes exactly at round end', () => {

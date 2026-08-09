@@ -10,6 +10,7 @@ import type { EffectCardId } from '../game/attachedCards/attachedCardRules'
 import {
   calculateInitialMeteoriteDamage,
   calculateInitialThunderDamage,
+  calculateInitialTornadoDamage,
 } from '../game/effectCards/effectCardRules'
 import {
   collectMeteoriteHitTargets,
@@ -22,6 +23,15 @@ import {
   selectThunderTarget,
   type ThunderTarget,
 } from '../game/effectCards/thunderTargeting'
+import {
+  advanceTornadoRunMotion,
+  advanceTornadoStraightMotion,
+  clampTornadoSpawnPosition,
+  collectTornadoHitTargets,
+  createTornadoInitialDirections,
+  selectTornadoTurnInterval,
+  type TornadoMotionState,
+} from '../game/effectCards/tornadoRules'
 import { evaluateWeaponDamageInterval } from '../game/damage/weaponDamageInterval'
 
 export interface BalanceCombatMimic extends ThunderTarget {
@@ -40,6 +50,7 @@ export interface SimulatedEffectCardEvent {
   chainDepth: number
   meteoriteLandings?: Vector2[]
   meteoriteLaunchOffsetsMs?: number[]
+  sourcePosition?: Vector2
 }
 
 interface SimulatedMeteoriteImpact {
@@ -49,11 +60,23 @@ interface SimulatedMeteoriteImpact {
   chainDepth: number
 }
 
+interface SimulatedTornadoTick {
+  kind: 'tornadoTick'
+  tickAtMs: number
+  runEndsAtMs: number
+  motion: TornadoMotionState
+  nextDamageAllowedAtMsByTarget: Map<number, number>
+  chainDepth: number
+}
+
 interface PendingCardEvent extends SimulatedEffectCardEvent {
   kind: 'card'
 }
 
-type PendingEffectEvent = PendingCardEvent | SimulatedMeteoriteImpact
+type PendingEffectEvent =
+  | PendingCardEvent
+  | SimulatedMeteoriteImpact
+  | SimulatedTornadoTick
 
 export interface EffectCardCombatMetrics {
   defeatedByMimic: Record<MimicId, number>
@@ -65,6 +88,7 @@ export interface EffectCardCombatMetrics {
   thunderStrikesTriggered: number
   meteoritesLaunched: number
   meteoriteImpacts: number
+  tornadoesSpawned: number
   maximumEffectChainDepth: number
 }
 
@@ -75,7 +99,7 @@ function emptyMimicCounts(): Record<MimicId, number> {
 }
 
 function emptyEffectCounts(): Record<EffectCardId, number> {
-  return { thunder: 0, meteorite: 0 }
+  return { thunder: 0, meteorite: 0, tornado: 0 }
 }
 
 export function simulateEffectCardCombat(
@@ -99,6 +123,18 @@ export function simulateEffectCardCombat(
   const pendingEvents: PendingEffectEvent[] = scheduledCardEvents.map(
     (event) => ({ ...event, kind: 'card' }),
   )
+  pendingEvents.sort((first, second) => eventTime(first) - eventTime(second))
+  const enqueueEffectEvent = (event: PendingEffectEvent) => {
+    let lower = 0
+    let upper = pendingEvents.length
+    const time = eventTime(event)
+    while (lower < upper) {
+      const middle = Math.floor((lower + upper) / 2)
+      if (eventTime(pendingEvents[middle]) <= time) lower = middle + 1
+      else upper = middle
+    }
+    pendingEvents.splice(lower, 0, event)
+  }
   const movementSpeed =
     (field.heightPixels + spawnConfig.cardHeightPixels * 2) /
     (roundConfig.mimicFieldTravelDurationMs / 1_000)
@@ -106,7 +142,9 @@ export function simulateEffectCardCombat(
   let thunderStrikesTriggered = 0
   let meteoritesLaunched = 0
   let meteoriteImpacts = 0
+  let tornadoesSpawned = 0
   let maximumEffectChainDepth = 0
+  let nextWeaponTargetIndex = 0
 
   const getActiveMimics = (atMs: number) =>
     mimics.filter((mimic) => {
@@ -120,6 +158,23 @@ export function simulateEffectCardCombat(
       )
     })
 
+  const getWeaponTarget = (atMs: number) => {
+    while (nextWeaponTargetIndex < mimics.length) {
+      const mimic = mimics[nextWeaponTargetIndex]
+      if (mimic.spawnedAtMs > atMs) return null
+      mimic.logicalY =
+        mimic.initialY + movementSpeed * ((atMs - mimic.spawnedAtMs) / 1_000)
+      const hasExited =
+        atMs - mimic.spawnedAtMs >= roundConfig.mimicFieldTravelDurationMs
+      if (hasExited || mimic.health === null || mimic.health <= 0) {
+        nextWeaponTargetIndex += 1
+        continue
+      }
+      return mimic
+    }
+    return null
+  }
+
   const defeatMimic = (
     mimic: BalanceCombatMimic,
     atMs: number,
@@ -130,11 +185,12 @@ export function simulateEffectCardCombat(
     ordinaryIncome += mimicConfigs[mimic.mimicId].baseReward
     if (source) defeats[source] += 1
     for (const id of mimic.effectCardIds) {
-      pendingEvents.push({
+      enqueueEffectEvent({
         kind: 'card',
         id,
         readyAtMs: atMs + effectCardConfig.ejection.durationMs,
         chainDepth: chainDepth + 1,
+        sourcePosition: { x: mimic.logicalX, y: mimic.logicalY },
       })
     }
   }
@@ -202,7 +258,7 @@ export function simulateEffectCardCombat(
         landing,
       )
       meteoritesLaunched += 1
-      pendingEvents.push({
+      enqueueEffectEvent({
         kind: 'meteoriteImpact',
         impactAtMs:
           launchAtMs +
@@ -213,6 +269,90 @@ export function simulateEffectCardCombat(
         chainDepth: event.chainDepth,
       })
     }
+  }
+
+  const triggerTornado = (event: PendingCardEvent) => {
+    const source = event.sourcePosition ?? {
+      x: field.widthPixels / 2,
+      y: field.heightPixels / 2,
+    }
+    const fieldSize = {
+      width: field.widthPixels,
+      height: field.heightPixels,
+    }
+    const startPosition = clampTornadoSpawnPosition(source, fieldSize)
+    const runStartsAtMs =
+      event.readyAtMs + effectCardConfig.tornado.startAnimationDurationMs
+    const runEndsAtMs = runStartsAtMs + effectCardConfig.tornado.runDurationMs
+    for (const direction of createTornadoInitialDirections(
+      effectCardConfig.tornado.initialTornadoCount,
+      random,
+    )) {
+      tornadoesSpawned += 1
+      if (runStartsAtMs >= roundConfig.durationMs) continue
+      const afterStart = advanceTornadoStraightMotion(
+        { position: startPosition, direction },
+        effectCardConfig.tornado.startAnimationDurationMs,
+        fieldSize,
+      )
+      enqueueEffectEvent({
+        kind: 'tornadoTick',
+        tickAtMs: runStartsAtMs,
+        runEndsAtMs,
+        motion: {
+          ...afterStart,
+          remainingTurnMs: selectTornadoTurnInterval(random),
+        },
+        nextDamageAllowedAtMsByTarget: new Map(),
+        chainDepth: event.chainDepth,
+      })
+    }
+  }
+
+  const processTornadoTick = (event: SimulatedTornadoTick) => {
+    const activeMimics = getActiveMimics(event.tickAtMs)
+    const hitTargets = collectTornadoHitTargets(
+      activeMimics,
+      event.motion.position,
+    ).filter(
+      (target) =>
+        event.tickAtMs >=
+        (event.nextDamageAllowedAtMsByTarget.get(target.id) ?? 0),
+    )
+    for (const target of hitTargets) {
+      event.nextDamageAllowedAtMsByTarget.set(
+        target.id,
+        event.tickAtMs + effectCardConfig.tornado.damageIntervalPerTargetMs,
+      )
+    }
+    damageTargets(
+      hitTargets,
+      calculateInitialTornadoDamage(),
+      'tornado',
+      event.tickAtMs,
+      event.chainDepth,
+    )
+
+    const nextTickAtMs = Math.min(
+      event.tickAtMs + effectCardConfig.tornado.damageIntervalPerTargetMs,
+      event.runEndsAtMs,
+    )
+    if (
+      nextTickAtMs >= event.runEndsAtMs ||
+      nextTickAtMs >= roundConfig.durationMs
+    ) {
+      return
+    }
+    enqueueEffectEvent({
+      ...event,
+      tickAtMs: nextTickAtMs,
+      motion: advanceTornadoRunMotion(
+        event.motion,
+        nextTickAtMs - event.tickAtMs,
+        { width: field.widthPixels, height: field.heightPixels },
+        random,
+      ),
+    })
   }
 
   const processEvent = (event: PendingEffectEvent) => {
@@ -228,19 +368,29 @@ export function simulateEffectCardCombat(
       )
       return
     }
+    if (event.kind === 'tornadoTick') {
+      processTornadoTick(event)
+      return
+    }
 
     cardsTriggered[event.id] += 1
     maximumEffectChainDepth = Math.max(
       maximumEffectChainDepth,
       event.chainDepth,
     )
-    if (event.id === 'thunder') triggerThunder(event)
-    else triggerMeteorite(event)
+    if (event.id === 'thunder') {
+      triggerThunder(event)
+      return
+    }
+    if (event.id === 'meteorite') {
+      triggerMeteorite(event)
+      return
+    }
+    triggerTornado(event)
   }
 
   const processEffectsThrough = (throughMs: number, inclusive = true) => {
     while (true) {
-      pendingEvents.sort((first, second) => eventTime(first) - eventTime(second))
       const event = pendingEvents[0]
       if (
         !event ||
@@ -260,7 +410,7 @@ export function simulateEffectCardCombat(
     const clickAtMs = (clickIndex + 1) * clickIntervalMs
     if (clickAtMs >= roundConfig.durationMs) break
     processEffectsThrough(clickAtMs)
-    const target = getActiveMimics(clickAtMs)[0]
+    const target = getWeaponTarget(clickAtMs)
     if (!target || target.health === null) continue
     const interval = evaluateWeaponDamageInterval(
       target.nextWeaponDamageAllowedAtMs,
@@ -286,11 +436,13 @@ export function simulateEffectCardCombat(
     thunderStrikesTriggered,
     meteoritesLaunched,
     meteoriteImpacts,
+    tornadoesSpawned,
     maximumEffectChainDepth,
   }
 }
 
 function eventTime(event: PendingEffectEvent): number {
   if (event.kind === 'card') return event.readyAtMs
-  return event.impactAtMs
+  if (event.kind === 'meteoriteImpact') return event.impactAtMs
+  return event.tickAtMs
 }

@@ -1,11 +1,11 @@
 import { animationConfig } from '../../configs/animationConfig'
+import type { AttachedCardRarity } from '../../configs/attachedCardConfig'
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
 import { combatConfig } from '../../configs/combatConfig'
 import {
   equipmentConfig,
   equipmentDefinitions,
   type EquipmentId,
-  type EquipmentRarity,
 } from '../../configs/equipmentConfig'
 import { jackpotConfig } from '../../configs/jackpotConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
@@ -90,7 +90,7 @@ interface EquipmentArrivalEvent {
 
 type EquipmentCombatEvent = RingStrikeEvent | EquipmentArrivalEvent
 
-const rarityById = new Map<EquipmentId, EquipmentRarity>(
+const rarityById = new Map<EquipmentId, AttachedCardRarity>(
   equipmentDefinitions.map(({ id, rarity }) => [id, rarity]),
 )
 
@@ -410,7 +410,7 @@ function createInitialEquipmentState(
 
 function toEquipmentDrop(id: EquipmentId): {
   id: EquipmentId
-  rarity: EquipmentRarity
+  rarity: AttachedCardRarity
 } {
   const rarity = rarityById.get(id)
   if (!rarity) throw new Error(`Missing rarity for equipment ${id}`)

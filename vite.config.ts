@@ -6,6 +6,7 @@ import babel from '@rolldown/plugin-babel'
 export default defineConfig({
   test: {
     environment: 'node',
+    setupFiles: ['./src/test/setup.ts'],
     coverage: {
       include: ['src/service/**/*.ts'],
     },

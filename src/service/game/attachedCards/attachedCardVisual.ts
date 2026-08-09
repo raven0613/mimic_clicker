@@ -9,9 +9,13 @@ import {
 
 import {
   attachedCardConfig,
-  type EffectCardRarity,
+  type AttachedCardHaloConfig,
+  type GlowingAttachedCardRarity,
 } from '../../../configs/attachedCardConfig'
-import type { EquipmentId } from '../../../configs/equipmentConfig'
+import {
+  equipmentDefinitions,
+  type EquipmentId,
+} from '../../../configs/equipmentConfig'
 import type {
   AttachedCardAssignment,
   EffectAttachedCardAssignment,
@@ -21,6 +25,7 @@ import {
   createAttachedCardFan,
   type AttachedCardFan,
 } from './attachedCardFan'
+import { getAttachedCardHaloConfig } from './attachedCardHalo'
 import type { LoadedAttachedCardTextures } from '../assets/runtimeAssets'
 
 interface AttachedCardVisual {
@@ -37,14 +42,23 @@ export type AttachedCardAttachment =
   | EquipmentCardAttachment
 export type RuntimeAttachedCardFan = AttachedCardFan<AttachedCardAttachment>
 
-const effectHaloContexts: Partial<Record<EffectCardRarity, GraphicsContext>> = {}
-const ringOutlineContext = createRingOutlineContext()
-const ringGlowContext = createRingGlowContext()
-const ringGlowBlurFilter = new BlurFilter({
-  strength: attachedCardConfig.ringHalo.blurStrengthPixels,
-  quality: attachedCardConfig.ringHalo.blurQuality,
-})
-ringGlowBlurFilter.padding = attachedCardConfig.ringHalo.blurPaddingPixels
+interface CardFrameHaloResources {
+  outlineContext: GraphicsContext
+  glowContext: GraphicsContext
+  blurFilter: BlurFilter
+}
+
+type HaloStrokeFills =
+  | { kind: 'solid'; outline: string; glow: string }
+  | { kind: 'gradient'; gradient: FillGradient }
+
+const equipmentRarityById = new Map(
+  equipmentDefinitions.map(({ id, rarity }) => [id, rarity]),
+)
+const cardFrameHaloResources = new Map<
+  GlowingAttachedCardRarity,
+  CardFrameHaloResources
+>()
 
 export function createAttachedCardFanVisual(
   assignments: readonly AttachedCardAssignment[],
@@ -62,10 +76,12 @@ export function createEquipmentCardAttachment(
   id: EquipmentId,
   textures: LoadedAttachedCardTextures,
 ): EquipmentCardAttachment {
+  const rarity = equipmentRarityById.get(id)
+  if (!rarity) throw new Error(`Missing equipment rarity for ${id}`)
   const assignment: EquipmentAttachedCardAssignment = {
     kind: 'equipment',
     id,
-    rarity: id === 'ring' ? 'sr' : 'normal',
+    rarity,
   }
   return createAttachedCardAttachment(
     assignment,
@@ -77,14 +93,13 @@ export function updateAttachedCardHalo(
   attachment: AttachedCardAttachment,
   elapsedMs: number,
 ): void {
-  if (attachment.kind === 'equipment' && attachment.id === 'sword') return
-  const halo =
-    attachment.kind === 'equipment'
-      ? attachedCardConfig.ringHalo
-      : attachedCardConfig.haloByRarity[attachment.rarity]
-  const pulse = Math.sin((elapsedMs / halo.pulsePeriodMs) * Math.PI * 2)
+  const haloConfig = getAttachedCardHaloConfig(attachment.rarity)
+  if (!haloConfig) return
+  const pulse = Math.sin(
+    (elapsedMs / haloConfig.pulsePeriodMs) * Math.PI * 2,
+  )
   attachment.halo.alpha =
-    halo.baseOpacityMultiplier + pulse * halo.pulseAmplitude
+    haloConfig.baseOpacityMultiplier + pulse * haloConfig.pulseAmplitude
 }
 
 function createAttachedCardAttachment(
@@ -94,24 +109,19 @@ function createAttachedCardAttachment(
   const container = new Container({ eventMode: 'none' })
   const halo = createHalo(assignment)
   halo.blendMode = 'add'
+  halo.alpha =
+    getAttachedCardHaloConfig(assignment.rarity)?.baseOpacityMultiplier ?? 0
 
   if (assignment.kind === 'effect') {
     container.addChild(
       createCardSprite(textures.frames[assignment.frameId]),
       createCardSprite(textures.effectIcons[assignment.id]),
     )
-    halo.alpha =
-      attachedCardConfig.haloByRarity[assignment.rarity]
-        .baseOpacityMultiplier
   } else {
     container.addChild(
       createCardSprite(textures.frames.normal),
       createCardSprite(textures.equipmentCards[assignment.id]),
     )
-    halo.alpha =
-      assignment.id === 'ring'
-        ? attachedCardConfig.ringHalo.baseOpacityMultiplier
-        : 0
   }
 
   return { ...assignment, container, halo } as AttachedCardAttachment
@@ -131,29 +141,22 @@ function createCardSprite(texture: Sprite['texture']): Sprite {
   return sprite
 }
 
-function createHalo(
-  assignment: AttachedCardAssignment,
-): Container {
-  if (assignment.kind === 'effect') {
-    return new Graphics({
-      context: getEffectHaloContext(assignment.rarity),
-      eventMode: 'none',
-      roundPixels: true,
-    })
-  }
-  if (assignment.id === 'sword') {
-    return new Container({ eventMode: 'none' })
-  }
+function createHalo(assignment: AttachedCardAssignment): Container {
+  if (assignment.rarity === 'N') return new Container({ eventMode: 'none' })
+  return createCardFrameHalo(assignment.rarity)
+}
 
+function createCardFrameHalo(rarity: GlowingAttachedCardRarity): Container {
   const halo = new Container({ eventMode: 'none' })
+  const resources = getCardFrameHaloResources(rarity)
   const glow = new Graphics({
-    context: ringGlowContext,
+    context: resources.glowContext,
     eventMode: 'none',
     roundPixels: true,
   })
-  glow.filters = [ringGlowBlurFilter]
+  glow.filters = [resources.blurFilter]
   const outline = new Graphics({
-    context: ringOutlineContext,
+    context: resources.outlineContext,
     eventMode: 'none',
     roundPixels: true,
   })
@@ -161,65 +164,93 @@ function createHalo(
   return halo
 }
 
-function getEffectHaloContext(rarity: EffectCardRarity): GraphicsContext {
-  const existing = effectHaloContexts[rarity]
+function getCardFrameHaloResources(
+  rarity: GlowingAttachedCardRarity,
+): CardFrameHaloResources {
+  const existing = cardFrameHaloResources.get(rarity)
   if (existing) return existing
-  const created = createEffectHaloContext(rarity)
-  effectHaloContexts[rarity] = created
+  const created = createCardFrameHaloResources(
+    attachedCardConfig.haloByRarity[rarity],
+  )
+  cardFrameHaloResources.set(rarity, created)
   return created
 }
 
-function createEffectHaloContext(rarity: EffectCardRarity): GraphicsContext {
-  const { card } = attachedCardConfig
-  const halo = attachedCardConfig.haloByRarity[rarity]
-  const gradient = new FillGradient({
-    type: 'radial',
-    center: { x: 0.5, y: 0.5 },
-    innerRadius: 0,
-    outerCenter: { x: 0.5, y: 0.5 },
-    outerRadius: 0.5,
-    textureSpace: 'local',
-    colorStops: halo.gradientColorStops.map((stop) => ({ ...stop })),
+function createCardFrameHaloResources(
+  config: AttachedCardHaloConfig,
+): CardFrameHaloResources {
+  const fills = createHaloStrokeFills(config)
+  const outlineContext = createHaloStrokeContext(config, fills, 'outline')
+  const glowContext = createHaloStrokeContext(config, fills, 'glow')
+  const blurFilter = new BlurFilter({
+    strength: config.blurStrengthPixels,
+    quality: config.blurQuality,
   })
-  return new GraphicsContext()
-    .ellipse(
-      0,
-      0,
-      card.displayWidthPixels / 2 + halo.outerExpansionPixels,
-      card.displayHeightPixels / 2 + halo.outerExpansionPixels,
-    )
-    .fill(gradient)
+  blurFilter.padding = config.blurPaddingPixels
+  return { outlineContext, glowContext, blurFilter }
 }
 
-function createRingOutlineContext(): GraphicsContext {
-  const { ringHalo } = attachedCardConfig
-  return addRingFramePath(new GraphicsContext())
-    .stroke({
-      width: ringHalo.outlineStrokeWidthPixels,
-      color: ringHalo.outlineColor,
+function createHaloStrokeFills(
+  config: AttachedCardHaloConfig,
+): HaloStrokeFills {
+  if (config.color.kind === 'solid') {
+    return {
+      kind: 'solid',
+      outline: config.color.outlineColor,
+      glow: config.color.glowColor,
+    }
+  }
+  const gradient = new FillGradient({
+    type: 'linear',
+    start: config.color.start,
+    end: config.color.end,
+    textureSpace: 'local',
+    colorStops: config.color.colorStops.map((stop) => ({ ...stop })),
+  })
+  return { kind: 'gradient', gradient }
+}
+
+function createHaloStrokeContext(
+  config: AttachedCardHaloConfig,
+  fills: HaloStrokeFills,
+  layer: 'outline' | 'glow',
+): GraphicsContext {
+  const context = addCardFramePath(
+    new GraphicsContext(),
+    config.cornerRadiusPixels,
+  )
+  const width =
+    layer === 'outline'
+      ? config.outlineStrokeWidthPixels
+      : config.glowStrokeWidthPixels
+  const alpha = layer === 'outline' ? 1 : config.glowOpacity
+  if (fills.kind === 'gradient') {
+    return context.stroke({
+      width,
+      fill: fills.gradient,
+      alpha,
       alignment: 0.5,
     })
+  }
+  return context.stroke({
+    width,
+    color: fills[layer],
+    alpha,
+    alignment: 0.5,
+  })
 }
 
-function createRingGlowContext(): GraphicsContext {
-  const { ringHalo } = attachedCardConfig
-  return addRingFramePath(new GraphicsContext())
-    .stroke({
-      width: ringHalo.glowStrokeWidthPixels,
-      color: ringHalo.glowColor,
-      alpha: ringHalo.glowOpacity,
-      alignment: 0.5,
-    })
-}
-
-function addRingFramePath(context: GraphicsContext): GraphicsContext {
-  const { card, ringHalo } = attachedCardConfig
+function addCardFramePath(
+  context: GraphicsContext,
+  cornerRadiusPixels: number,
+): GraphicsContext {
+  const { card } = attachedCardConfig
   return context
     .roundRect(
       -card.displayWidthPixels / 2,
       -card.displayHeightPixels / 2,
       card.displayWidthPixels,
       card.displayHeightPixels,
-      ringHalo.cornerRadiusPixels,
+      cornerRadiusPixels,
     )
 }

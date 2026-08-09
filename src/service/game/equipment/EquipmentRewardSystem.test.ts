@@ -1,5 +1,6 @@
-import { Container, Texture } from 'pixi.js'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+
+import { Container, Texture } from 'pixi.js'
 
 import { animationConfig } from '../../../configs/animationConfig'
 import { combatConfig } from '../../../configs/combatConfig'
@@ -15,7 +16,11 @@ const fieldSize = { x: 800, y: 600 }
 const source = { x: fieldSize.x / 2, y: fieldSize.y / 3 }
 const textures: LoadedAttachedCardTextures = {
   frames: { normal: Texture.WHITE },
-  effectIcons: { thunder: Texture.EMPTY, meteorite: Texture.EMPTY },
+  effectIcons: {
+    thunder: Texture.EMPTY,
+    meteorite: Texture.EMPTY,
+    tornado: Texture.EMPTY,
+  },
   equipmentCards: { sword: Texture.EMPTY, ring: Texture.EMPTY },
 }
 
