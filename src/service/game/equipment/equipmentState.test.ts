@@ -5,6 +5,24 @@ import { equipmentConfig } from '../../../configs/equipmentConfig'
 import { EquipmentState } from './equipmentState'
 
 describe('equipment state', () => {
+  it('uses the same reservation flow for a permanently unlocked third slot', () => {
+    const state = new EquipmentState(equipmentConfig.initialSlotCount + 1)
+
+    const reservations = state.reserveDrops([
+      { id: 'sword', rarity: 'N' },
+      { id: 'ring', rarity: 'SR' },
+      { id: 'sword', rarity: 'N' },
+      { id: 'ring', rarity: 'SR' },
+    ])
+
+    expect(
+      reservations.filter(({ destination }) => destination.type === 'slot'),
+    ).toHaveLength(equipmentConfig.initialSlotCount + 1)
+    expect(
+      reservations.filter(({ destination }) => destination.type === 'backpack'),
+    ).toHaveLength(1)
+  })
+
   it('reserves distinct slots by rarity and sends overflow to backpack', () => {
     const state = new EquipmentState()
 

@@ -1,5 +1,7 @@
-import type { ProgressData } from '../../types/game'
+import type { PermanentUpgradeId, ProgressData } from '../../types/game'
 import { SaveControls } from '../save/SaveControls'
+import { PermanentUpgradeShop } from '../upgrade/PermanentUpgradeShop'
+import type { PermanentUpgradePurchaseStatus } from '../../service/progression/permanentUpgrades'
 
 interface MainMenuProps {
   progress: ProgressData
@@ -7,6 +9,9 @@ interface MainMenuProps {
   onImport: (code: string) => Promise<void>
   onReset: () => Promise<void>
   onExport: () => string
+  onPurchaseUpgrade: (
+    upgradeId: PermanentUpgradeId,
+  ) => Promise<PermanentUpgradePurchaseStatus>
 }
 
 export function MainMenu({
@@ -15,6 +20,7 @@ export function MainMenu({
   onImport,
   onReset,
   onExport,
+  onPurchaseUpgrade,
 }: MainMenuProps) {
   return (
     <div className="overlay overlay--menu">
@@ -29,6 +35,10 @@ export function MainMenu({
         <button className="button button--primary" type="button" onClick={onStart}>
           開始一局
         </button>
+        <PermanentUpgradeShop
+          progress={progress}
+          onPurchase={onPurchaseUpgrade}
+        />
         <SaveControls
           onExport={onExport}
           onImport={onImport}

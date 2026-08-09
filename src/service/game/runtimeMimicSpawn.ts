@@ -28,6 +28,7 @@ interface CreatePositionedRuntimeMimicInput {
   random: RandomSource
   playRefillEntrance: boolean
   onAttack: (entity: RuntimeMimicEntity, position: Vector2) => void
+  onHoverChanged: (entity: RuntimeMimicEntity, hovered: boolean) => void
 }
 
 interface RuntimeSpawnContext {
@@ -38,6 +39,7 @@ interface RuntimeSpawnContext {
   attachedCardTextures: LoadedAttachedCardTextures
   random: RandomSource
   onAttack: (entity: RuntimeMimicEntity, position: Vector2) => void
+  onHoverChanged: (entity: RuntimeMimicEntity, hovered: boolean) => void
 }
 
 interface CreateTopEdgeRuntimeMimicInput extends RuntimeSpawnContext {
@@ -60,6 +62,7 @@ interface RuntimeMimicSpawnerInput {
   attachedCardTextures: LoadedAttachedCardTextures
   random: RandomSource
   onAttack: (entity: RuntimeMimicEntity, position: Vector2) => void
+  onHoverChanged: (entity: RuntimeMimicEntity, hovered: boolean) => void
   onSpawn: (entity: RuntimeMimicEntity) => void
 }
 
@@ -110,6 +113,7 @@ export class RuntimeMimicSpawner {
       attachedCardTextures: this.input.attachedCardTextures,
       random: this.input.random,
       onAttack: this.input.onAttack,
+      onHoverChanged: this.input.onHoverChanged,
     }
   }
 
@@ -201,6 +205,7 @@ function createPositionedRuntimeMimic(
     ),
     playRefillEntrance: input.playRefillEntrance,
     onAttack: input.onAttack,
+    onHoverChanged: input.onHoverChanged,
   })
 }
 

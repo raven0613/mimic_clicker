@@ -1,14 +1,14 @@
 import { useLayoutEffect, useRef } from 'react'
 
 import backpackImageUrl from '../../assets/equipment/backpack.png'
-import { equipmentConfig } from '../../configs/equipmentConfig'
 import type { EquipmentCollectionTargets, Vector2 } from '../../types/game'
 
 interface EquipmentHudProps {
+  slotCount: number
   onTargetsChange: (targets: EquipmentCollectionTargets) => void
 }
 
-export function EquipmentHud({ onTargetsChange }: EquipmentHudProps) {
+export function EquipmentHud({ slotCount, onTargetsChange }: EquipmentHudProps) {
   const slotRefs = useRef<Array<HTMLDivElement | null>>([])
   const backpackRef = useRef<HTMLImageElement>(null)
 
@@ -16,7 +16,7 @@ export function EquipmentHud({ onTargetsChange }: EquipmentHudProps) {
     const reportTargets = () => {
       onTargetsChange({
         slotTargets: Array.from(
-          { length: equipmentConfig.initialSlotCount },
+          { length: slotCount },
           (_, slotIndex) => centerOf(slotRefs.current[slotIndex]),
         ),
         backpackTarget: centerOf(backpackRef.current),
@@ -35,19 +35,19 @@ export function EquipmentHud({ onTargetsChange }: EquipmentHudProps) {
       window.removeEventListener('resize', reportTargets)
       onTargetsChange({
         slotTargets: Array.from(
-          { length: equipmentConfig.initialSlotCount },
+          { length: slotCount },
           () => null,
         ),
         backpackTarget: null,
       })
     }
-  }, [onTargetsChange])
+  }, [onTargetsChange, slotCount])
 
   return (
     <div className="equipment-hud" aria-label="Equipment">
       <div className="equipment-hud__slots">
         {Array.from(
-          { length: equipmentConfig.initialSlotCount },
+          { length: slotCount },
           (_, slotIndex) => (
             <div
               className="equipment-hud__slot"

@@ -1,7 +1,9 @@
 import { z } from 'zod'
 
 import { equipmentDefinitions } from '../../configs/equipmentConfig'
+import { permanentUpgradeConfig } from '../../configs/permanentUpgradeConfig'
 import { mimicIds, type ProgressData } from '../../types/game'
+import { createInitialPermanentUpgradeLevels } from '../progression/permanentUpgrades'
 
 const mimicIdSchema = z.enum(mimicIds)
 const equipmentIdSchema = z.enum(
@@ -82,7 +84,7 @@ const version1ProgressSchema = z
   })
   .strict()
 
-export const progressSchema = z
+const version2ProgressSchema = z
   .object({
     schemaVersion: z.literal(2),
     completedRounds: z.number().int().nonnegative(),
@@ -92,7 +94,55 @@ export const progressSchema = z
     latestRoundResult: roundResultSchema.nullable(),
   })
   .strict()
-  .superRefine((progress, context) => {
+
+const permanentUpgradeLevelsSchema = z
+  .object({
+    weaponDamage: boundedLevelSchema(
+      permanentUpgradeConfig.weaponDamage.damageByLevel.length - 1,
+    ),
+    hoverAutoAttackUnlock: boundedLevelSchema(1),
+    hoverAutoAttackInterval: boundedLevelSchema(
+      permanentUpgradeConfig.hoverAutoAttack.intervalMsByLevel.length - 1,
+    ),
+    equipmentSlots: boundedLevelSchema(
+      permanentUpgradeConfig.equipmentSlots.additionalSlotCountByLevel.length - 1,
+    ),
+  })
+  .strict()
+  .superRefine((levels, context) => {
+    if (
+      levels.hoverAutoAttackUnlock === 0 &&
+      levels.hoverAutoAttackInterval > 0
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Hover automatic attack interval requires its unlock',
+        path: ['hoverAutoAttackInterval'],
+      })
+    }
+  })
+
+export const progressSchema = z
+  .object({
+    schemaVersion: z.literal(3),
+    completedRounds: z.number().int().nonnegative(),
+    gold: z.number().int().nonnegative(),
+    unlockedMimicIds: z.array(mimicIdSchema),
+    pendingUnlockMimicIds: z.array(mimicIdSchema),
+    latestRoundResult: roundResultSchema.nullable(),
+    permanentUpgrades: permanentUpgradeLevelsSchema,
+  })
+  .strict()
+  .superRefine(validateProgression)
+
+function validateProgression(
+  progress: {
+    completedRounds: number
+    unlockedMimicIds: Array<(typeof mimicIds)[number]>
+    pendingUnlockMimicIds: Array<(typeof mimicIds)[number]>
+  },
+  context: z.RefinementCtx,
+): void {
     if (!progress.unlockedMimicIds.includes('normal')) {
       context.addIssue({
         code: 'custom',
@@ -145,16 +195,29 @@ export const progressSchema = z
         path: ['unlockedMimicIds'],
       })
     }
-  })
+}
 
 export function parseProgress(input: unknown): ProgressData {
   const version1 = version1ProgressSchema.safeParse(input)
   if (version1.success) {
     return progressSchema.parse({
       ...version1.data,
-      schemaVersion: 2,
+      schemaVersion: 3,
       latestRoundResult: null,
+      permanentUpgrades: createInitialPermanentUpgradeLevels(),
+    })
+  }
+  const version2 = version2ProgressSchema.safeParse(input)
+  if (version2.success) {
+    return progressSchema.parse({
+      ...version2.data,
+      schemaVersion: 3,
+      permanentUpgrades: createInitialPermanentUpgradeLevels(),
     })
   }
   return progressSchema.parse(input)
+}
+
+function boundedLevelSchema(maximumLevel: number): z.ZodNumber {
+  return z.number().int().min(0).max(maximumLevel)
 }

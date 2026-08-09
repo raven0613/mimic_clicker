@@ -260,6 +260,12 @@ $red: #d84b42;
   }
 }
 
+.main-menu {
+  width: min(640px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
 .eyebrow {
   margin-bottom: 9px;
   color: #8d4f23;

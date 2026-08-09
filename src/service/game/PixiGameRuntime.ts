@@ -5,7 +5,7 @@ import { interfaceConfig } from '../../configs/interfaceConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import { roundConfig } from '../../configs/roundConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
-import type { EquipmentCollectionTargets, JackpotOutcome, MimicId, RandomSource } from '../../types/game'
+import type { EquipmentCollectionTargets, JackpotOutcome, MimicId, PermanentUpgradeSnapshot, RandomSource } from '../../types/game'
 import { calculateJackpotReward } from '../progression/progression'
 import { calculateEquipmentSale } from '../settlement/equipmentSale'
 import { createRoundResult } from '../settlement/roundSettlement'
@@ -13,7 +13,7 @@ import { selectWeightedMimicId } from '../spawn/spawn'
 import { loadRuntimeAssets, type LoadedAttachedCardTextures } from './assets/runtimeAssets'
 import { assignJackpotRuntimeAttachedCards, updateRuntimeAttachedCardHalos } from './attachedCards/runtimeAttachedCards'
 import { applyRuntimeMimicDamage } from './damage/runtimeMimicDamage'
-import { performRuntimeManualAttack } from './damage/runtimeManualAttack'
+import { RuntimeWeaponAttackSystem } from './damage/RuntimeWeaponAttackSystem'
 import { RuntimeClearRefillSystem } from './clearRefill/RuntimeClearRefillSystem'
 import { resolveRuntimeRingStrikes } from './equipment/runtimeRingStrikes'
 import { addRuntimeDeathEffect } from './effects/runtimeDeathEffect'
@@ -39,6 +39,7 @@ export class PixiGameRuntime {
   private mimicSpawner: RuntimeMimicSpawner | null = null
   private effectSystems: RuntimeEffectSystems | null = null
   private clearRefillSystem: RuntimeClearRefillSystem | null = null
+  private readonly weaponAttacks: RuntimeWeaponAttackSystem
   private mode: RuntimeMode = 'idle'
   private mimicPool: MimicId[] = ['normal']
   private mainRemainingMs = 0
@@ -63,6 +64,19 @@ export class PixiGameRuntime {
     this.host = host
     this.callbacks = callbacks
     this.random = random
+    this.weaponAttacks = new RuntimeWeaponAttackSystem({
+      getRoundElapsedMs: () => this.roundElapsedMs,
+      getEntities: () => this.entities,
+      getEquipment: () => this.effectSystems?.equipment ?? null,
+      damageTarget: (entity, damage, source) =>
+        this.damageEntity(
+          entity,
+          damage,
+          source === 'manual' ? 'manualWeapon' : 'automatic',
+        ),
+      addManualHitEffect: (position) =>
+        this.effectSystems?.addManualHit(position),
+    })
   }
 
   public async initialize(): Promise<void> {
@@ -73,7 +87,7 @@ export class PixiGameRuntime {
       autoDensity: true,
       resolution: Math.min(window.devicePixelRatio || 1, interfaceConfig.maximumCanvasResolution),
       preference: 'webgl',
-      eventFeatures: { move: false, globalMove: false, click: true, wheel: false },
+      eventFeatures: { move: true, globalMove: false, click: true, wheel: false },
     })
     this.initialized = true
     this.host.appendChild(this.app.canvas)
@@ -92,7 +106,10 @@ export class PixiGameRuntime {
       mimicTextures: assets.mimics,
       attachedCardTextures: assets.attachedCards,
       random: this.random,
-      onAttack: (entity, position) => this.attackEntity(entity, position),
+      onAttack: (entity, position) =>
+        this.weaponAttacks.attackManual(entity, position),
+      onHoverChanged: (entity, hovered) =>
+        this.weaponAttacks.setHovered(entity, hovered),
       onSpawn: (entity) => {
         this.entities.push(entity)
         this.fieldLayer.addChild(entity.container)
@@ -136,11 +153,16 @@ export class PixiGameRuntime {
     this.app.ticker.add(this.update)
   }
 
-  public startRound(mimicPool: MimicId[]): void {
+  public startRound(
+    mimicPool: MimicId[],
+    upgrades: PermanentUpgradeSnapshot,
+  ): void {
     if (!this.textures || !this.attachedCardTextures || !this.mimicSpawner) {
       throw new Error('Cannot start a round before PixiJS assets are loaded')
     }
     this.clearScene()
+    this.weaponAttacks.startRound(upgrades)
+    this.effectSystems?.equipment.startRound(upgrades.equipmentSlotCount)
     this.mimicPool = [...mimicPool]
     this.mainRemainingMs = roundConfig.durationMs
     this.roundElapsedMs = 0
@@ -222,8 +244,11 @@ export class PixiGameRuntime {
       })
     }
     if (!this.roundEnding) {
+      const activeDeltaMs = Math.min(deltaMs, this.mainRemainingMs)
+      const includeRoundEnd = deltaMs < this.mainRemainingMs
       this.mainRemainingMs = Math.max(0, this.mainRemainingMs - deltaMs)
-      this.roundElapsedMs += deltaMs
+      this.roundElapsedMs += activeDeltaMs
+      this.weaponAttacks.update(activeDeltaMs, includeRoundEnd)
       this.nextRegularSpawnMs -= deltaMs
       this.trySpawnJackpotDisguise()
       this.trySpawnRegular(false)
@@ -265,7 +290,6 @@ export class PixiGameRuntime {
         : roundConfig.regularSpawnIntervalMs
       : spawnConfig.retryDelayMs
   }
-
   private trySpawnJackpotDisguise(): void {
     if (
       this.jackpotOutcome !== null ||
@@ -283,7 +307,6 @@ export class PixiGameRuntime {
       this.jackpotReturnAtMs = this.roundElapsedMs + spawnConfig.retryDelayMs
     }
   }
-
   private spawnMimic(
     mimicId: MimicId,
     role: RuntimeMimicEntity['role'],
@@ -292,7 +315,6 @@ export class PixiGameRuntime {
     if (!this.mimicSpawner || this.app.screen.width <= 0) return false
     return this.mimicSpawner.spawnTopEdge(mimicId, role, decorative)
   }
-
   private updateEntities(deltaMs: number): void {
     for (const entity of [...this.entities]) {
       if (entity.role === 'jackpot' && entity.jackpotLifecycle) {
@@ -309,7 +331,6 @@ export class PixiGameRuntime {
       updateRuntimeAttachedCardHalos(entity, this.roundElapsedMs)
     }
   }
-
   private updateJackpot(entity: RuntimeMimicEntity, deltaMs: number): void {
     const result = updateRuntimeJackpot(
       entity,
@@ -322,20 +343,6 @@ export class PixiGameRuntime {
     this.removeEntity(entity)
     if (this.roundEnding) this.finishRound()
   }
-
-  private attackEntity(entity: RuntimeMimicEntity, position: { x: number; y: number }): void {
-    performRuntimeManualAttack({
-      entity,
-      position,
-      attackAtMs: this.roundElapsedMs,
-      equipment: this.effectSystems?.equipment ?? null,
-      damageTarget: (target, damage) =>
-        this.damageEntity(target, damage, 'manualWeapon'),
-      addHitEffect: (hitPosition) =>
-        this.effectSystems?.addManualHit(hitPosition),
-    })
-  }
-
   private damageEntity(
     entity: RuntimeMimicEntity,
     damage: number,
@@ -388,7 +395,6 @@ export class PixiGameRuntime {
     this.emitHudSnapshot()
     return true
   }
-
   private revealJackpot(entity: RuntimeMimicEntity): void {
     if (!this.textures) return
     revealRuntimeJackpot(entity, this.textures.jackpot, this.random)
@@ -403,7 +409,6 @@ export class PixiGameRuntime {
     this.callbacks.onJackpotRevealed()
     this.emitHudSnapshot()
   }
-
   private handleFlowExit(entity: RuntimeMimicEntity): void {
     if (entity.role === 'jackpotDisguise' && this.mode === 'active') {
       this.jackpotMissCount += 1
@@ -415,7 +420,6 @@ export class PixiGameRuntime {
     }
     this.removeEntity(entity)
   }
-
   private beginRoundEnding(): void {
     this.roundEnding = true
     this.roundEquipmentSale = calculateEquipmentSale(
@@ -445,14 +449,12 @@ export class PixiGameRuntime {
     if (this.jackpotOutcome === null) this.jackpotOutcome = 'notRevealed'
     this.finishRound()
   }
-
   private resolveJackpot(outcome: JackpotOutcome): void {
     if (this.jackpotOutcome !== null) return
     this.jackpotOutcome = outcome
     this.callbacks.onJackpotResolved()
     this.emitHudSnapshot()
   }
-
   private finishRound(): void {
     if (this.mode !== 'active') return
     const result = createRoundResult({
@@ -466,7 +468,6 @@ export class PixiGameRuntime {
     this.nextRegularSpawnMs = 0
     this.callbacks.onRoundCompleted(result)
   }
-
   private emitHudSnapshot(): void {
     const jackpot = this.findJackpotEntity()
     this.callbacks.onHudSnapshot({
@@ -481,18 +482,17 @@ export class PixiGameRuntime {
       jackpotOutcome: this.jackpotOutcome,
     })
   }
-
   private findJackpotEntity(): RuntimeMimicEntity | undefined {
     return this.entities.find((entity) => entity.role !== 'regular')
   }
-
   private removeEntity(entity: RuntimeMimicEntity): void {
+    this.weaponAttacks.removeEntity(entity)
     const index = this.entities.indexOf(entity)
     if (index >= 0) this.entities.splice(index, 1)
     entity.container.destroy({ children: true })
   }
-
   private clearScene(): void {
+    this.weaponAttacks.clear()
     this.clearRefillSystem?.reset()
     this.effectSystems?.clear()
     for (const entity of [...this.entities]) this.removeEntity(entity)

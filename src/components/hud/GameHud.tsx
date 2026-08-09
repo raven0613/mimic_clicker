@@ -12,12 +12,14 @@ import { TimerBar } from './TimerBar'
 
 interface GameHudProps {
   hud: HudSnapshot
+  equipmentSlotCount: number
   onGoldTargetChange: (target: Vector2 | null) => void
   onEquipmentTargetsChange: (targets: EquipmentCollectionTargets) => void
 }
 
 export function GameHud({
   hud,
+  equipmentSlotCount,
   onGoldTargetChange,
   onEquipmentTargetsChange,
 }: GameHudProps) {
@@ -80,7 +82,10 @@ export function GameHud({
           {hud.defeatedMimics}
         </span>
       </div>
-      <EquipmentHud onTargetsChange={onEquipmentTargetsChange} />
+      <EquipmentHud
+        slotCount={equipmentSlotCount}
+        onTargetsChange={onEquipmentTargetsChange}
+      />
     </div>
   )
 }

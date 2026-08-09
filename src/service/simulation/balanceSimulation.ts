@@ -107,7 +107,7 @@ export interface SimulatedRound {
   finished: boolean
 }
 
-const stagePools: Record<StageKey, MimicId[]> = {
+export const stagePools: Record<StageKey, MimicId[]> = {
   normalOnly: ['normal'],
   normalRare1: ['normal', 'rare1'],
   allMimics: ['normal', 'rare1', 'rare2'],

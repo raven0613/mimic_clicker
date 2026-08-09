@@ -6,6 +6,8 @@ import { mimicConfigs } from '../../configs/mimicConfigs'
 import type { ProgressData } from '../../types/game'
 import { completeRound } from '../progression/progression'
 import { createInitialProgress } from '../progression/createInitialProgress'
+import { purchasePermanentUpgrade } from '../progression/permanentUpgrades'
+import { permanentUpgradeConfig } from '../../configs/permanentUpgradeConfig'
 import { calculateEquipmentSale } from '../settlement/equipmentSale'
 import { createRoundResult } from '../settlement/roundSettlement'
 import { createSaveRepository } from './saveRepository'
@@ -66,6 +68,23 @@ describe('save repository', () => {
     expect(reset.completedRounds).toBe(0)
     expect(reset.gold).toBe(0)
     expect(reset.unlockedMimicIds).toEqual(['normal'])
+    expect(reset.permanentUpgrades).toEqual(
+      createInitialProgress().permanentUpgrades,
+    )
+  })
+
+  it('persists a permanent upgrade and its gold deduction together', async () => {
+    const repository = createRepository()
+    const initial = {
+      ...(await repository.loadOrCreate()),
+      gold: permanentUpgradeConfig.weaponDamage.costGoldByLevel[0],
+    }
+    const purchase = purchasePermanentUpgrade(initial, 'weaponDamage')
+
+    expect(purchase.status).toBe('purchased')
+    await repository.replace(purchase.progress)
+
+    expect(await repository.loadOrCreate()).toEqual(purchase.progress)
   })
 
   it('rejects progression that contradicts the fixed unlock sequence', async () => {

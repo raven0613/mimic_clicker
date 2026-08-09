@@ -21,6 +21,7 @@ import {
 import type { SimulatedAttachedContent } from './attachedCardSimulation'
 import { simulateCoinCollectionCompletionMs } from './coinRewardTimingSimulation'
 import { simulateEquipmentSettlingCompletionMs } from './equipmentRewardTimingSimulation'
+import { createWeaponAttackSchedule } from './weaponAttackSimulation'
 
 export type EquipmentCounts = Record<EquipmentId, number>
 
@@ -39,9 +40,15 @@ export interface RoundEquipmentMetrics {
   backpack: EquipmentCounts
   activationTimeTotalMs: number
   activationCount: number
+  thirdSlotActivationTimeTotalMs: number
+  thirdSlotActivationCount: number
   swordAdditionalDamage: number
   ringAdditionalDamage: number
   ringDamageStrikes: number
+  manualWeaponHits: number
+  automaticWeaponHits: number
+  manualWeaponDamage: number
+  automaticWeaponDamage: number
   defeatedMimics: number
   ordinaryIncome: number
   jackpotRevealed: boolean
@@ -56,6 +63,9 @@ interface SimulateEquipmentCombatRoundInput {
   jackpotReward: number
   jackpotCase: JackpotOutcome
   initialLoadout: readonly EquipmentId[]
+  baseWeaponDamage?: number
+  automaticAttackIntervalMs?: number | null
+  equipmentSlotCount?: number
   clickRate: number
   accuracy: number
   random: RandomSource
@@ -96,7 +106,12 @@ const rarityById = new Map<EquipmentId, AttachedCardRarity>(
 export function simulateEquipmentCombatRound(
   input: SimulateEquipmentCombatRoundInput,
 ): RoundEquipmentMetrics {
-  const state = createInitialEquipmentState(input.initialLoadout)
+  const baseWeaponDamage =
+    input.baseWeaponDamage ?? combatConfig.initialWeaponDamage
+  const state = createInitialEquipmentState(
+    input.initialLoadout,
+    input.equipmentSlotCount ?? equipmentConfig.initialSlotCount,
+  )
   const metrics = createEmptyMetrics()
   const targets = input.ordinaryMimics.map(toCombatTarget)
   const events: EquipmentCombatEvent[] = []
@@ -163,15 +178,23 @@ export function simulateEquipmentCombatRound(
     target: CombatTarget,
     damage: number,
     atMs: number,
-    source: 'weapon' | 'ring',
+    source: 'manualWeapon' | 'automaticWeapon' | 'ring',
   ) => {
     const healthBeforeDamage = target.health
     target.health = Math.max(0, target.health - damage)
-    if (source === 'weapon') {
+    const appliedDamage = Math.min(healthBeforeDamage, damage)
+    if (source === 'manualWeapon' || source === 'automaticWeapon') {
       metrics.swordAdditionalDamage += Math.min(
-        Math.max(0, healthBeforeDamage - combatConfig.initialWeaponDamage),
-        Math.max(0, damage - combatConfig.initialWeaponDamage),
+        Math.max(0, healthBeforeDamage - baseWeaponDamage),
+        Math.max(0, damage - baseWeaponDamage),
       )
+      if (source === 'manualWeapon') {
+        metrics.manualWeaponHits += 1
+        metrics.manualWeaponDamage += appliedDamage
+      } else {
+        metrics.automaticWeaponHits += 1
+        metrics.automaticWeaponDamage += appliedDamage
+      }
     } else {
       metrics.ringAdditionalDamage += Math.min(healthBeforeDamage, damage)
       metrics.ringDamageStrikes += 1
@@ -220,9 +243,17 @@ export function simulateEquipmentCombatRound(
         const metric = isEquipped ? metrics.equipped : metrics.backpack
         metric[event.reservation.id] += 1
         if (isEquipped) {
-          metrics.activationTimeTotalMs +=
-            event.atMs - event.sourceResolvedAtMs
+          const activationTimeMs = event.atMs - event.sourceResolvedAtMs
+          metrics.activationTimeTotalMs += activationTimeMs
           metrics.activationCount += 1
+          if (
+            event.reservation.destination.type === 'slot' &&
+            event.reservation.destination.slotIndex >=
+              equipmentConfig.initialSlotCount
+          ) {
+            metrics.thirdSlotActivationTimeTotalMs += activationTimeMs
+            metrics.thirdSlotActivationCount += 1
+          }
         }
         continue
       }
@@ -237,31 +268,31 @@ export function simulateEquipmentCombatRound(
     }
   }
 
-  const clickIntervalMs = 1_000 / (input.clickRate * input.accuracy)
-  for (
-    let clickAtMs = clickIntervalMs;
-    clickAtMs < roundConfig.durationMs;
-    clickAtMs += clickIntervalMs
-  ) {
-    processEventsThrough(clickAtMs)
+  const attempts = createWeaponAttackSchedule(
+    1_000 / (input.clickRate * input.accuracy),
+    input.automaticAttackIntervalMs ?? null,
+  )
+  for (const attempt of attempts) {
+    processEventsThrough(attempt.atMs)
     const target = selectClickTarget(
       targets,
       jackpotTarget,
       input.jackpotCase,
-      clickAtMs,
+      attempt.atMs,
     )
     if (!target) continue
     const interval = evaluateWeaponDamageInterval(
       target.nextWeaponDamageAllowedAtMs,
-      clickAtMs,
+      attempt.atMs,
     )
     if (!interval.isAllowed) continue
     target.nextWeaponDamageAllowedAtMs = interval.nextAllowedAtMs
     const weaponDamage = state.calculateWeaponDamage(
-      combatConfig.initialWeaponDamage,
+      baseWeaponDamage,
     )
-    damageTarget(target, weaponDamage, clickAtMs, 'weapon')
+    damageTarget(target, weaponDamage, attempt.atMs, attempt.source)
 
+    if (attempt.source === 'automaticWeapon') continue
     const ringCount = state.getEquippedCount('ring')
     if (ringCount === 0) continue
     acceptedManualHitCount += 1
@@ -273,7 +304,7 @@ export function simulateEquipmentCombatRound(
     }
     acceptedManualHitCount = 0
     let queueTailAtMs = Math.max(
-      clickAtMs,
+      attempt.atMs,
       ...events
         .filter((event) => event.kind === 'ringStrike')
         .map((event) => event.atMs),
@@ -372,8 +403,9 @@ function targetYAt(target: CombatTarget, atMs: number): number {
 
 function createInitialEquipmentState(
   initialLoadout: readonly EquipmentId[],
+  slotCount: number,
 ): EquipmentState {
-  const state = new EquipmentState()
+  const state = new EquipmentState(slotCount)
   for (const reservation of state.reserveDrops(
     initialLoadout.map(toEquipmentDrop),
   )) {
@@ -400,9 +432,15 @@ function createEmptyMetrics(): RoundEquipmentMetrics {
     backpack: emptyCounts(),
     activationTimeTotalMs: 0,
     activationCount: 0,
+    thirdSlotActivationTimeTotalMs: 0,
+    thirdSlotActivationCount: 0,
     swordAdditionalDamage: 0,
     ringAdditionalDamage: 0,
     ringDamageStrikes: 0,
+    manualWeaponHits: 0,
+    automaticWeaponHits: 0,
+    manualWeaponDamage: 0,
+    automaticWeaponDamage: 0,
     defeatedMimics: 0,
     ordinaryIncome: 0,
     jackpotRevealed: false,

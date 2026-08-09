@@ -10,12 +10,19 @@ import { StatusOverlay } from './components/overlay/StatusOverlay'
 import { UnlockModal } from './components/overlay/UnlockModal'
 import { PixiGameRuntime } from './service/game/PixiGameRuntime'
 import { acknowledgeUnlock, completeRound, getAvailableMimicIds } from './service/progression/progression'
+import {
+  createPermanentUpgradeSnapshot,
+  purchasePermanentUpgrade,
+  type PermanentUpgradePurchaseStatus,
+} from './service/progression/permanentUpgrades'
 import { decodeProgress, encodeProgress } from './service/save/saveCodec'
 import { createSaveRepository } from './service/save/saveRepository'
 import { gameFlowMachine } from './state/gameFlowMachine'
 import { useGameStore } from './store/gameStore'
 import type {
   EquipmentCollectionTargets,
+  PermanentUpgradeId,
+  PermanentUpgradeSnapshot,
   ProgressData,
   RoundResult,
   Vector2,
@@ -28,6 +35,8 @@ function App() {
   const [flow, send] = useMachine(gameFlowMachine)
   const [runtime, setRuntime] = useState<PixiGameRuntime | null>(null)
   const [loadedProgress, setLoadedProgress] = useState<ProgressData | null>(null)
+  const [roundUpgrades, setRoundUpgrades] =
+    useState<PermanentUpgradeSnapshot | null>(null)
   const [unlockSaveBusy, setUnlockSaveBusy] = useState(false)
   const [failedOperation, setFailedOperation] = useState<FailedOperation>('boot')
   const bootSent = useRef(false)
@@ -101,9 +110,25 @@ function App() {
 
   function startRound() {
     if (!runtime) return
+    const upgrades = createPermanentUpgradeSnapshot(progress.permanentUpgrades)
     setLatestRoundResult(null)
-    runtime.startRound(getAvailableMimicIds(progress))
+    setRoundUpgrades(upgrades)
+    runtime.startRound(getAvailableMimicIds(progress), upgrades)
     send({ type: 'START_ROUND' })
+  }
+
+  async function purchaseUpgrade(
+    upgradeId: PermanentUpgradeId,
+  ): Promise<PermanentUpgradePurchaseStatus> {
+    const purchase = purchasePermanentUpgrade(progress, upgradeId)
+    if (purchase.status !== 'purchased') return purchase.status
+    try {
+      await saveRepository.replace(purchase.progress)
+      hydrateProgress(purchase.progress)
+      return purchase.status
+    } catch (error) {
+      throw new Error(`無法保存永久升級「${upgradeId}」。`, { cause: error })
+    }
   }
 
   function handleRoundCompleted(result: RoundResult) {
@@ -206,9 +231,10 @@ function App() {
         onRoundCompleted={handleRoundCompleted}
       />
 
-      {flow.matches('playing') && (
+      {flow.matches('playing') && roundUpgrades && (
         <GameHud
           hud={hud}
+          equipmentSlotCount={roundUpgrades.equipmentSlotCount}
           onGoldTargetChange={handleGoldTargetChange}
           onEquipmentTargetsChange={handleEquipmentTargetsChange}
         />
@@ -223,6 +249,7 @@ function App() {
           onExport={() => encodeProgress(progress)}
           onImport={importProgress}
           onReset={resetProgress}
+          onPurchaseUpgrade={purchaseUpgrade}
         />
       )}
       {flow.matches('savingSettlement') && (

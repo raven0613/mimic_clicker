@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import { combatConfig } from '../../configs/combatConfig'
-import { simulateRequiredWeaponHits } from './weaponAttackSimulation'
+import { permanentUpgradeConfig } from '../../configs/permanentUpgradeConfig'
+import {
+  createWeaponAttackSchedule,
+  simulateRequiredWeaponHits,
+} from './weaponAttackSimulation'
 
 describe('weapon attack simulation', () => {
   const intervalMs = combatConfig.minimumWeaponDamageIntervalPerTargetMs
@@ -31,5 +35,20 @@ describe('weapon attack simulation', () => {
 
     expect(result.attemptCount).toBe(4)
     expect(result.completedAtMs).toBe(intervalMs * 2)
+  })
+
+  it('orders manual attempts before automatic attempts at a shared boundary', () => {
+    const intervalMs =
+      permanentUpgradeConfig.hoverAutoAttack.intervalMsByLevel[0]
+    const attempts = createWeaponAttackSchedule(intervalMs, intervalMs)
+
+    expect(attempts.slice(0, 2).map(({ source }) => source)).toEqual([
+      'manualWeapon',
+      'automaticWeapon',
+    ])
+  })
+
+  it('rejects an invalid automatic attack interval', () => {
+    expect(() => createWeaponAttackSchedule(intervalMs, 0)).toThrow(/interval/i)
   })
 })

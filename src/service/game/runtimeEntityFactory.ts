@@ -27,6 +27,7 @@ interface CreateRuntimeMimicInput {
   hiddenEquipmentId: EquipmentId | null
   playRefillEntrance: boolean
   onAttack: (entity: RuntimeMimicEntity, position: Vector2) => void
+  onHoverChanged: (entity: RuntimeMimicEntity, hovered: boolean) => void
 }
 
 export function createRuntimeMimicEntity(
@@ -104,11 +105,13 @@ export function createRuntimeMimicEntity(
   if (input.decorative) {
     container.eventMode = 'none'
   } else {
-    container.eventMode = 'static'
+    container.eventMode = 'dynamic'
     container.cursor = 'pointer'
     container.on('pointertap', (event: FederatedPointerEvent) =>
       input.onAttack(entity, { x: event.global.x, y: event.global.y }),
     )
+    container.on('pointerenter', () => input.onHoverChanged(entity, true))
+    container.on('pointerleave', () => input.onHoverChanged(entity, false))
   }
   return entity
 }

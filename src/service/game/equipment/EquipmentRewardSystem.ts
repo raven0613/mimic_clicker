@@ -78,7 +78,7 @@ export class EquipmentRewardSystem {
   private readonly pendingRewards: PendingEquipmentReward[] = []
   private readonly failedDrops: FailedEquipmentDrop[] = []
   private readonly equippedVisuals: EquippedEquipmentVisual[] = []
-  private readonly state = new EquipmentState()
+  private state = new EquipmentState()
   private readonly host: HTMLElement
   private readonly textures: LoadedAttachedCardTextures
   private readonly random: RandomSource
@@ -121,6 +121,11 @@ export class EquipmentRewardSystem {
       slotTargets: targets.slotTargets.map(convert),
       backpackTarget: convert(targets.backpackTarget),
     }
+  }
+
+  public startRound(slotCount: number): void {
+    this.clear()
+    this.state = new EquipmentState(slotCount)
   }
 
   public resolveDrops(input: ResolveEquipmentDropsInput): void {

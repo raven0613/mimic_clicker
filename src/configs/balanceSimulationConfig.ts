@@ -1,7 +1,8 @@
 import type { EquipmentId } from './equipmentConfig'
+import type { PermanentUpgradeLevels } from '../types/game'
 
 export const balanceSimulationConfig = {
-  configVersion: 'settlement-equipment-sale-v14',
+  configVersion: 'permanent-upgrades-v15',
   seeds: [11, 29, 47, 83, 131, 197, 263, 347, 431, 557, 683, 809],
   field: {
     widthPixels: 1_280,
@@ -31,6 +32,59 @@ export const balanceSimulationConfig = {
     duplicateRing: ['ring', 'ring'],
     swordAndRing: ['sword', 'ring'],
   } satisfies Record<string, readonly EquipmentId[]>,
+  permanentUpgradeProfiles: {
+    allZero: {
+      levels: levels(0, 0, 0, 0),
+      initialLoadout: [],
+    },
+    weaponDamage1: {
+      levels: levels(1, 0, 0, 0),
+      initialLoadout: [],
+    },
+    weaponDamage2: {
+      levels: levels(2, 0, 0, 0),
+      initialLoadout: [],
+    },
+    weaponDamage3: {
+      levels: levels(3, 0, 0, 0),
+      initialLoadout: [],
+    },
+    hoverUnlocked: {
+      levels: levels(0, 1, 0, 0),
+      initialLoadout: [],
+    },
+    hoverInterval1: {
+      levels: levels(0, 1, 1, 0),
+      initialLoadout: [],
+    },
+    hoverInterval2: {
+      levels: levels(0, 1, 2, 0),
+      initialLoadout: [],
+    },
+    hoverInterval3: {
+      levels: levels(0, 1, 3, 0),
+      initialLoadout: [],
+    },
+    equipmentSlot3: {
+      levels: levels(0, 0, 0, 1),
+      initialLoadout: [],
+    },
+    equipmentSlot3SwordMix: {
+      levels: levels(0, 0, 0, 1),
+      initialLoadout: ['sword', 'sword', 'ring'],
+    },
+    equipmentSlot3RingMix: {
+      levels: levels(0, 0, 0, 1),
+      initialLoadout: ['ring', 'ring', 'sword'],
+    },
+    allMaximum: {
+      levels: levels(3, 1, 3, 1),
+      initialLoadout: [],
+    },
+  } satisfies Record<
+    string,
+    { levels: PermanentUpgradeLevels; initialLoadout: readonly EquipmentId[] }
+  >,
   targets: {
     maximumPlacementRejectionRatio: 0.2,
     maximumSpawnShareDeviation: 0.08,
@@ -43,6 +97,14 @@ export const balanceSimulationConfig = {
     },
     maximumAverageEquipmentActivationTimeMs: 3_500,
     equipmentSaleIncomeShare: { minimum: 0.15, maximum: 0.25 },
+    permanentUpgrades: {
+      maximumAutomaticDamageShare: 0.4,
+      minimumMaximumProfileManualDamageShare: 0.55,
+      maximumTotalIncomeIncreaseRatio: 1,
+      maximumFirstWeaponPurchaseRounds: 1,
+      maximumDirectSlotPurchaseRounds: 6,
+      maximumAllUpgradePurchaseRounds: 30,
+    },
     clearRefill: {
       maximumP90EmptyFieldDurationMs: 150,
       maximumRefillTotalIncomeIncreaseRatio: 0.85,
@@ -53,3 +115,17 @@ export const balanceSimulationConfig = {
     },
   },
 } as const
+
+function levels(
+  weaponDamage: number,
+  hoverAutoAttackUnlock: number,
+  hoverAutoAttackInterval: number,
+  equipmentSlots: number,
+): PermanentUpgradeLevels {
+  return {
+    weaponDamage,
+    hoverAutoAttackUnlock,
+    hoverAutoAttackInterval,
+    equipmentSlots,
+  }
+}

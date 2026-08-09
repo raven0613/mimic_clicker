@@ -1,0 +1,70 @@
+.upgrade-shop {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(77, 46, 25, 0.14);
+}
+
+.upgrade-shop__heading,
+.upgrade-offer > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.upgrade-shop__heading {
+  margin-bottom: 10px;
+
+  h2 {
+    margin: 0;
+    font-size: 24px;
+  }
+
+  span {
+    color: #8d4f23;
+    font-weight: 850;
+  }
+}
+
+.upgrade-shop__offers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.upgrade-offer {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(107, 65, 30, 0.08);
+
+  small {
+    color: #806958;
+  }
+
+  p {
+    min-height: 34px;
+    margin: 0;
+    color: #614a39;
+    font-size: 12px;
+  }
+
+  .button {
+    padding: 9px 8px;
+    font-size: 12px;
+  }
+}
+
+.upgrade-shop__message {
+  margin: 10px 0 0;
+  color: #8d4f23;
+  font-size: 12px;
+}
+
+@media (max-width: 620px) {
+  .upgrade-shop__offers {
+    grid-template-columns: 1fr;
+  }
+}

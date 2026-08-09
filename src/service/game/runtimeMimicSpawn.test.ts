@@ -69,6 +69,7 @@ function createSpawner(): RuntimeMimicSpawner {
     attachedCardTextures: {} as LoadedAttachedCardTextures,
     random: () => 0.5,
     onAttack: vi.fn(),
+    onHoverChanged: vi.fn(),
     onSpawn: (entity) => entities.push(entity),
   })
 }

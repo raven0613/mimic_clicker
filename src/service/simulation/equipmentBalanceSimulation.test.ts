@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
 import { equipmentConfig } from '../../configs/equipmentConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
+import { permanentUpgradeConfig } from '../../configs/permanentUpgradeConfig'
 import { roundConfig } from '../../configs/roundConfig'
 import { simulateEquipmentCombatRound } from './equipmentBalanceSimulation'
 import type { SimulatedAttachedContent } from './attachedCardSimulation'
@@ -79,6 +80,52 @@ describe('equipment combat balance simulation', () => {
 
     expect(metrics.backpack.sword).toBe(1)
     expect(metrics.activationCount).toBe(0)
+  })
+
+  it('simulates permanent weapon damage without counting it as Sword damage', () => {
+    const metrics = simulateEquipmentCombatRound({
+      ordinaryMimics: [createMimic(0, 0)],
+      shellMimicId: 'normal',
+      shellContent: noAttachedContent,
+      jackpotContent: noAttachedContent,
+      jackpotReward: mimicConfigs.normal.baseReward,
+      jackpotCase: 'notRevealed',
+      initialLoadout: [],
+      baseWeaponDamage:
+        permanentUpgradeConfig.weaponDamage.damageByLevel[
+          permanentUpgradeConfig.weaponDamage.damageByLevel.length - 1
+        ],
+      clickRate: balanceSimulationConfig.playerClickRatesPerSecond.target,
+      accuracy: balanceSimulationConfig.accuracyRates.target,
+      random: () => 0,
+    })
+
+    expect(metrics.manualWeaponHits).toBeGreaterThan(0)
+    expect(metrics.manualWeaponDamage).toBeGreaterThan(0)
+    expect(metrics.swordAdditionalDamage).toBe(0)
+  })
+
+  it('tracks automatic weapon attempts separately from manual Ring hits', () => {
+    const metrics = simulateEquipmentCombatRound({
+      ordinaryMimics: [createMimic(0, 0)],
+      shellMimicId: 'normal',
+      shellContent: noAttachedContent,
+      jackpotContent: noAttachedContent,
+      jackpotReward: mimicConfigs.normal.baseReward,
+      jackpotCase: 'notRevealed',
+      initialLoadout: ['ring'],
+      automaticAttackIntervalMs:
+        permanentUpgradeConfig.hoverAutoAttack.intervalMsByLevel[
+          permanentUpgradeConfig.hoverAutoAttack.intervalMsByLevel.length - 1
+        ],
+      clickRate: balanceSimulationConfig.playerClickRatesPerSecond.slow,
+      accuracy: balanceSimulationConfig.accuracyRates.low,
+      random: () => 0,
+    })
+
+    expect(metrics.automaticWeaponHits).toBeGreaterThan(0)
+    expect(metrics.automaticWeaponDamage).toBeGreaterThan(0)
+    expect(metrics.ringDamageStrikes).toBe(0)
   })
 })
 
