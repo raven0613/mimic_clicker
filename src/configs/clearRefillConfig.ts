@@ -1,7 +1,7 @@
 export const clearRefillConfig = {
   confirmationDelayMs: 100,
   minimumRemainingRoundMs: 1_000,
-  minimumVisibleRatioForTarget: 0.25,
+  minimumVisibleRatioForTarget: 0.6,
 } as const
 
 export const clearFeedbackConfig = {
@@ -18,4 +18,11 @@ export const clearFeedbackConfig = {
   fillColor: 0xffe36b,
   strokeColor: 0x5b2100,
   strokeWidthPixels: 7,
+  refillEntrance: {
+    initialScale: 0,
+    growDurationMs: 160,
+    peakScale: 1.05,
+    settleDurationMs: 60,
+    settledScale: 1,
+  },
 } as const

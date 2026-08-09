@@ -26,6 +26,7 @@ interface CreatePositionedRuntimeMimicInput {
   mimicTextures: LoadedMimicTextures
   attachedCardTextures: LoadedAttachedCardTextures
   random: RandomSource
+  playRefillEntrance: boolean
   onAttack: (entity: RuntimeMimicEntity, position: Vector2) => void
 }
 
@@ -47,7 +48,10 @@ interface CreateTopEdgeRuntimeMimicInput extends RuntimeSpawnContext {
 
 interface CreateFieldFillRuntimeMimicsInput extends RuntimeSpawnContext {
   mimicPool: MimicId[]
+  playRefillEntrance: boolean
 }
+
+type FieldFillPresentation = 'immediate' | 'clearRefill'
 
 interface RuntimeMimicSpawnerInput {
   getFieldSize: () => Vector2
@@ -84,10 +88,14 @@ export class RuntimeMimicSpawner {
     return true
   }
 
-  public fillField(mimicPool: MimicId[]): number {
+  public fillField(
+    mimicPool: MimicId[],
+    presentation: FieldFillPresentation,
+  ): number {
     const entities = createFieldFillRuntimeMimics({
       ...this.createContext(),
       mimicPool,
+      playRefillEntrance: presentation === 'clearRefill',
     })
     for (const entity of entities) this.addEntity(entity)
     return entities.length
@@ -132,6 +140,7 @@ function createTopEdgeRuntimeMimic(
   return createPositionedRuntimeMimic({
     ...input,
     runtimeId: input.nextRuntimeId,
+    playRefillEntrance: false,
     position,
   })
 }
@@ -190,6 +199,7 @@ function createPositionedRuntimeMimic(
         .map((assignment) => assignment.id),
       input.random,
     ),
+    playRefillEntrance: input.playRefillEntrance,
     onAttack: input.onAttack,
   })
 }

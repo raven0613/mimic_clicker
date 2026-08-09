@@ -132,7 +132,7 @@ export class PixiGameRuntime {
         this.effectSystems?.hasActiveEffectCardChain() ?? false,
       refill: () => {
         this.trySpawnJackpotDisguise()
-        this.mimicSpawner?.fillField(this.mimicPool)
+        this.mimicSpawner?.fillField(this.mimicPool, 'clearRefill')
         this.effectSystems?.showClearFeedback()
       },
     })
@@ -156,7 +156,7 @@ export class PixiGameRuntime {
     this.jackpotOutcome = null
     this.roundEnding = false
     this.hudSnapshotElapsedMs = interfaceConfig.hudSnapshotIntervalMs
-    this.mimicSpawner.fillField(this.mimicPool)
+    this.mimicSpawner.fillField(this.mimicPool, 'immediate')
     this.mode = 'active'
     this.emitHudSnapshot()
   }

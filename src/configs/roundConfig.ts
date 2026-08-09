@@ -1,5 +1,5 @@
 export const roundConfig = {
-  durationMs: 45_000,
+  durationMs: 30_000,
   initialSpawnDelayMs: 400,
   regularSpawnIntervalMs: 850,
   decorativeSpawnIntervalMs: 1_150,

@@ -32,6 +32,7 @@ export interface RuntimeMimicEntity {
   mimicId: MimicId
   role: 'regular' | 'jackpotDisguise' | 'jackpot'
   container: Container
+  visualContainer: Container
   sprite: Sprite
   flashSprite: Sprite
   health: number | null
@@ -41,6 +42,7 @@ export interface RuntimeMimicEntity {
   logicalY: number
   downwardSpeedPixelsPerSecond: number
   hitAnimationRemainingMs: number
+  refillEntranceElapsedMs: number | null
   nextWeaponDamageAllowedAtMs: number
   jackpotLifecycle: JackpotLifecycle | null
   jackpotVelocity: Vector2

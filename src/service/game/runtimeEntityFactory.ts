@@ -10,6 +10,7 @@ import { createMimicCrackVisual } from './damage/mimicCrackVisual'
 import type { EquipmentId } from '../../configs/equipmentConfig'
 import type { AttachedCardAssignment } from './attachedCards/attachedCardRules'
 import { createAttachedCardFanVisual } from './attachedCards/attachedCardVisual'
+import { initializeRefillEntranceAnimation } from './clearRefill/refillEntranceAnimation'
 import type { LoadedMimicTextures, RuntimeMimicEntity } from './runtimeTypes'
 
 interface CreateRuntimeMimicInput {
@@ -24,6 +25,7 @@ interface CreateRuntimeMimicInput {
   attachedCardTextures: LoadedAttachedCardTextures
   attachedCardAssignments: readonly AttachedCardAssignment[]
   hiddenEquipmentId: EquipmentId | null
+  playRefillEntrance: boolean
   onAttack: (entity: RuntimeMimicEntity, position: Vector2) => void
 }
 
@@ -33,7 +35,8 @@ export function createRuntimeMimicEntity(
   const cardWidth = spawnConfig.cardWidthPixels
   const cardHeight = spawnConfig.cardHeightPixels
   const texture = input.textures[input.mimicId]
-  const container = new Container({ sortableChildren: true })
+  const container = new Container()
+  const visualContainer = new Container()
   const sprite = new Sprite({ texture, anchor: 0.5 })
   const flashSprite = new Sprite({ texture, anchor: 0.5, blendMode: 'add' })
   const crackVisual = input.decorative
@@ -43,9 +46,10 @@ export function createRuntimeMimicEntity(
   flashSprite.setSize(cardWidth, cardHeight)
   flashSprite.alpha = 0
   flashSprite.eventMode = 'none'
-  container.addChild(sprite)
-  if (crackVisual) container.addChild(crackVisual.graphics)
-  container.addChild(flashSprite)
+  visualContainer.addChild(sprite)
+  if (crackVisual) visualContainer.addChild(crackVisual.graphics)
+  visualContainer.addChild(flashSprite)
+  container.addChild(visualContainer)
   container.position.set(input.centerX, input.centerY)
   container.zIndex = input.role === 'jackpotDisguise' ? 5 : 1
   const mimicHitArea = new Rectangle(
@@ -64,6 +68,7 @@ export function createRuntimeMimicEntity(
     mimicId: input.mimicId,
     role: input.role,
     container,
+    visualContainer,
     sprite,
     flashSprite,
     health: maximumHealth,
@@ -75,6 +80,7 @@ export function createRuntimeMimicEntity(
       (input.fieldHeight + cardHeight * 2) /
       (roundConfig.mimicFieldTravelDurationMs / 1_000),
     hitAnimationRemainingMs: 0,
+    refillEntranceElapsedMs: null,
     nextWeaponDamageAllowedAtMs: 0,
     jackpotLifecycle: null,
     jackpotVelocity: { x: 0, y: 0 },
@@ -82,6 +88,7 @@ export function createRuntimeMimicEntity(
     attachedCards: [],
     hiddenEquipmentId: input.hiddenEquipmentId,
   }
+  initializeRefillEntranceAnimation(entity, input.playRefillEntrance)
   setRuntimeAttachedCards(
     entity,
     input.attachedCardAssignments,
@@ -118,5 +125,5 @@ export function setRuntimeAttachedCards(
   const fan = createAttachedCardFanVisual(assignments, textures)
   entity.attachedCardFan = fan
   entity.attachedCards = fan ? [...fan.cards] : []
-  if (fan) entity.container.addChild(fan.container)
+  if (fan) entity.visualContainer.addChild(fan.container)
 }

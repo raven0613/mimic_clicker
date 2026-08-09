@@ -15,6 +15,7 @@ function createDisguisedJackpot(): RuntimeMimicEntity {
     mimicId: 'normal',
     role: 'jackpotDisguise',
     container: { zIndex: 0 } as Container,
+    visualContainer: {} as Container,
     sprite: { texture: null } as unknown as Sprite,
     flashSprite: { texture: null } as unknown as Sprite,
     health: 0,
@@ -24,6 +25,7 @@ function createDisguisedJackpot(): RuntimeMimicEntity {
     logicalY: 0,
     downwardSpeedPixelsPerSecond: 0,
     hitAnimationRemainingMs: 0,
+    refillEntranceElapsedMs: null,
     nextWeaponDamageAllowedAtMs:
       combatConfig.minimumWeaponDamageIntervalPerTargetMs,
     jackpotLifecycle: null,

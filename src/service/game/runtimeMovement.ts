@@ -2,6 +2,7 @@ import { animationConfig } from '../../configs/animationConfig'
 import { jackpotConfig } from '../../configs/jackpotConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
 import { reflectVelocity, stabilizeJackpotVelocity } from '../combat/combat'
+import { updateRefillEntranceAnimation } from './clearRefill/refillEntranceAnimation'
 import type { RuntimeMimicEntity } from './runtimeTypes'
 
 export function moveChasingJackpot(
@@ -78,6 +79,7 @@ export function updateRuntimeEntityVisual(
     entity.logicalY,
   )
   entity.container.scale.set(1 + animationConfig.hit.scaleImpulse * hitProgress)
+  updateRefillEntranceAnimation(entity, deltaMs)
   entity.flashSprite.alpha = Math.min(
     animationConfig.hit.maximumFlashAlpha,
     entity.hitAnimationRemainingMs / animationConfig.hit.flashDurationMs,

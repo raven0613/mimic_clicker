@@ -11,6 +11,7 @@ import type {
   Vector2,
 } from '../../../types/game'
 import type { LoadedAttachedCardTextures } from '../assets/runtimeAssets'
+import { moveAttachedCardDisplayToLayer } from '../attachedCards/attachedCardLayerTransfer'
 import {
   createEquipmentCardAttachment,
   updateAttachedCardHalo,
@@ -363,8 +364,8 @@ export class EquipmentRewardSystem {
   private captureVisibleAttachment(
     attachment: EquipmentCardAttachment,
   ): EquipmentVisual {
-    this.haloLayer.reparentChild(attachment.halo)
-    this.cardLayer.reparentChild(attachment.container)
+    moveAttachedCardDisplayToLayer(attachment.halo, this.haloLayer)
+    moveAttachedCardDisplayToLayer(attachment.container, this.cardLayer)
     return this.captureAttachment(attachment)
   }
 

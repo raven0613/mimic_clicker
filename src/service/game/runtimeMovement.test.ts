@@ -19,6 +19,7 @@ function createEscapingJackpotEntity(): RuntimeMimicEntity {
     mimicId: 'normal',
     role: 'jackpot',
     container,
+    visualContainer: {} as Container,
     sprite,
     flashSprite,
     health: null,
@@ -28,6 +29,7 @@ function createEscapingJackpotEntity(): RuntimeMimicEntity {
     logicalY: 0,
     downwardSpeedPixelsPerSecond: 0,
     hitAnimationRemainingMs: 0,
+    refillEntranceElapsedMs: null,
     nextWeaponDamageAllowedAtMs: 0,
     jackpotLifecycle: {
       phase: 'escaping',

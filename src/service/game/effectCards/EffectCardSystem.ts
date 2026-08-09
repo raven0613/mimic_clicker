@@ -7,6 +7,7 @@ import type { LoadedEffectCardTextures } from '../assets/runtimeAssets'
 import type { RuntimeMimicEntity } from '../runtimeTypes'
 import { advanceEffectCardWindup } from './effectCardRules'
 import type { EffectCardAttachment } from '../attachedCards/attachedCardVisual'
+import { moveAttachedCardDisplayToLayer } from '../attachedCards/attachedCardLayerTransfer'
 import { MeteoriteEffectSystem } from './MeteoriteEffectSystem'
 import { ThunderEffectSystem } from './ThunderEffectSystem'
 import { TornadoEffectSystem } from './TornadoEffectSystem'
@@ -72,7 +73,7 @@ export class EffectCardSystem {
     for (const attachment of attachments) {
       attachment.halo.removeFromParent()
       attachment.halo.destroy({ context: false })
-      this.layer.reparentChild(attachment.container)
+      moveAttachedCardDisplayToLayer(attachment.container, this.layer)
       this.pendingCards.push({
         attachment,
         sourceX,
