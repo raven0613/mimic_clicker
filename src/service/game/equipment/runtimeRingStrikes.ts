@@ -8,7 +8,7 @@ interface ResolveRuntimeRingStrikesInput {
   deltaMs: number
   includeEndpoint?: boolean
   entities: readonly RuntimeMimicEntity[]
-  damageTarget: (target: RuntimeMimicEntity, damage: number) => boolean
+  damageTarget: (target: RuntimeMimicEntity, damage: number) => void
   addHitEffect: (position: Vector2, tintColor?: string) => void
 }
 
@@ -23,23 +23,15 @@ export function resolveRuntimeRingStrikes(
     const target = input.entities.find(
       (entity) => entity.runtimeId === strike.targetId,
     )
-    if (!target || !input.damageTarget(target, strike.damage)) {
-      input.equipment.cancelRingBatch(strike.batchId)
-      continue
-    }
+    const targetX = target?.logicalX ?? strike.targetPosition.x
+    const targetY = target?.logicalY ?? strike.targetPosition.y
+    if (target) input.damageTarget(target, strike.damage)
     input.addHitEffect(
       {
-        x:
-          target.logicalX +
-          equipmentConfig.ring.additionalHitEffectOffset.x,
-        y:
-          target.logicalY +
-          equipmentConfig.ring.additionalHitEffectOffset.y,
+        x: targetX + equipmentConfig.ring.additionalHitEffectOffset.x,
+        y: targetY + equipmentConfig.ring.additionalHitEffectOffset.y,
       },
       equipmentConfig.ring.additionalHitEffectTintColor,
     )
-    if (!input.entities.includes(target)) {
-      input.equipment.cancelRingBatch(strike.batchId)
-    }
   }
 }

@@ -11,6 +11,11 @@ describe('game flow machine', () => {
     expect(actor.getSnapshot().value).toBe('ready')
 
     actor.send({ type: 'START_ROUND' })
+    expect(actor.getSnapshot().value).toEqual({
+      playing: 'jackpotWaitingToAppear',
+    })
+
+    actor.send({ type: 'JACKPOT_RETURNED' })
     expect(actor.getSnapshot().value).toEqual({ playing: 'jackpotDisguised' })
   })
 
@@ -18,6 +23,7 @@ describe('game flow machine', () => {
     const actor = createActor(gameFlowMachine).start()
     actor.send({ type: 'BOOT_SUCCEEDED', hasPendingUnlock: false })
     actor.send({ type: 'START_ROUND' })
+    actor.send({ type: 'JACKPOT_RETURNED' })
     actor.send({ type: 'JACKPOT_REVEALED' })
 
     expect(actor.getSnapshot().value).toEqual({ playing: 'jackpotChasing' })
@@ -30,6 +36,7 @@ describe('game flow machine', () => {
     const actor = createActor(gameFlowMachine).start()
     actor.send({ type: 'BOOT_SUCCEEDED', hasPendingUnlock: false })
     actor.send({ type: 'START_ROUND' })
+    actor.send({ type: 'JACKPOT_RETURNED' })
     actor.send({ type: 'JACKPOT_LEFT_DISGUISED' })
     expect(actor.getSnapshot().value).toEqual({
       playing: 'jackpotWaitingToReturn',

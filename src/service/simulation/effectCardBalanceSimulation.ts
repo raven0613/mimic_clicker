@@ -148,13 +148,18 @@ export function simulateEffectCardCombat(
 
   const getActiveMimics = (atMs: number) =>
     mimics.filter((mimic) => {
+      if (
+        mimic.spawnedAtMs > atMs ||
+        mimic.health === null ||
+        mimic.health <= 0
+      ) {
+        return false
+      }
       mimic.logicalY =
         mimic.initialY + movementSpeed * ((atMs - mimic.spawnedAtMs) / 1_000)
       return (
-        mimic.spawnedAtMs <= atMs &&
-        atMs - mimic.spawnedAtMs < roundConfig.mimicFieldTravelDurationMs &&
-        mimic.health !== null &&
-        mimic.health > 0
+        mimic.logicalY - spawnConfig.cardHeightPixels / 2 <=
+        field.heightPixels
       )
     })
 
@@ -165,7 +170,7 @@ export function simulateEffectCardCombat(
       mimic.logicalY =
         mimic.initialY + movementSpeed * ((atMs - mimic.spawnedAtMs) / 1_000)
       const hasExited =
-        atMs - mimic.spawnedAtMs >= roundConfig.mimicFieldTravelDurationMs
+        mimic.logicalY - spawnConfig.cardHeightPixels / 2 > field.heightPixels
       if (hasExited || mimic.health === null || mimic.health <= 0) {
         nextWeaponTargetIndex += 1
         continue

@@ -57,7 +57,7 @@ describe('equipment combat balance simulation', () => {
 
     expect(metrics.jackpotRevealed).toBe(true)
     expect(metrics.jackpotDefeated).toBe(true)
-    expect(metrics.ringStrikes).toBeGreaterThan(0)
+    expect(metrics.ringDamageStrikes).toBeGreaterThan(0)
     expect(metrics.ringAdditionalDamage).toBeGreaterThan(0)
   })
 

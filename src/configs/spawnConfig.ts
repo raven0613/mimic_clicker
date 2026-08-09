@@ -6,6 +6,6 @@ export const spawnConfig = {
   cardWidthPixels: 148,
   cardHeightPixels: 148,
   spawnYInsetPixels: 28,
-  placementCheckVerticalRangePixels: 250,
+  initialFieldBottomNoSpawnHeightPixels: 200,
   maximumConcurrentMimics: 14,
 } as const

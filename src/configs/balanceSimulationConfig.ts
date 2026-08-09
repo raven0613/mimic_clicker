@@ -1,7 +1,7 @@
 import type { EquipmentId } from './equipmentConfig'
 
 export const balanceSimulationConfig = {
-  configVersion: 'tornado-effect-card-v11',
+  configVersion: 'initial-field-prefill-v12',
   seeds: [11, 29, 47, 83, 131, 197, 263, 347, 431, 557, 683, 809],
   field: {
     widthPixels: 1_280,

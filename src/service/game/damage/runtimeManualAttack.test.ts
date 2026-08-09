@@ -35,6 +35,10 @@ describe('runtime manual attack', () => {
     expect(damageTarget).toHaveBeenCalledWith(entity, weaponDamage)
     expect(equipment.recordAcceptedManualHit).toHaveBeenCalledWith({
       targetId: entity.runtimeId,
+      targetPosition: {
+        x: entity.logicalX,
+        y: entity.logicalY,
+      },
       triggeringWeaponDamage: weaponDamage,
     })
     expect(addHitEffect).toHaveBeenCalledOnce()
@@ -69,6 +73,8 @@ describe('runtime manual attack', () => {
 function createEntity(nextWeaponDamageAllowedAtMs: number): RuntimeMimicEntity {
   return {
     runtimeId: 9,
+    logicalX: 40,
+    logicalY: 60,
     nextWeaponDamageAllowedAtMs,
   } as RuntimeMimicEntity
 }

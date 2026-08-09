@@ -29,7 +29,7 @@ import { performRuntimeManualAttack } from './damage/runtimeManualAttack'
 import { resolveRuntimeRingStrikes } from './equipment/runtimeRingStrikes'
 import { addRuntimeDeathEffect } from './effects/runtimeDeathEffect'
 import { revealRuntimeJackpot } from './jackpot/revealRuntimeJackpot'
-import { createSpawnedRuntimeMimic } from './runtimeMimicSpawn'
+import { RuntimeMimicSpawner } from './runtimeMimicSpawn'
 import { moveChasingJackpot, updateRuntimeEntityVisual } from './runtimeMovement'
 import { RuntimeEffectSystems } from './RuntimeEffectSystems'
 import type { LoadedMimicTextures, RuntimeCallbacks, RuntimeMimicEntity } from './runtimeTypes'
@@ -46,6 +46,7 @@ export class PixiGameRuntime {
   private initialized = false
   private textures: LoadedMimicTextures | null = null
   private attachedCardTextures: LoadedAttachedCardTextures | null = null
+  private mimicSpawner: RuntimeMimicSpawner | null = null
   private effectSystems: RuntimeEffectSystems | null = null
   private mode: RuntimeMode = 'idle'
   private mimicPool: MimicId[] = ['normal']
@@ -60,7 +61,6 @@ export class PixiGameRuntime {
   private jackpotOutcome: JackpotOutcome | null = null
   private roundEnding = false
   private hudSnapshotElapsedMs = 0
-  private nextRuntimeEntityId = 1
   private nextRewardEventId = 1
 
   public constructor(
@@ -91,6 +91,21 @@ export class PixiGameRuntime {
     const assets = await loadRuntimeAssets()
     this.textures = assets.mimics
     this.attachedCardTextures = assets.attachedCards
+    this.mimicSpawner = new RuntimeMimicSpawner({
+      getFieldSize: () => ({
+        x: this.app.screen.width,
+        y: this.app.screen.height,
+      }),
+      getEntities: () => this.entities,
+      mimicTextures: assets.mimics,
+      attachedCardTextures: assets.attachedCards,
+      random: this.random,
+      onAttack: (entity, position) => this.attackEntity(entity, position),
+      onSpawn: (entity) => {
+        this.entities.push(entity)
+        this.fieldLayer.addChild(entity.container)
+      },
+    })
     this.effectSystems = new RuntimeEffectSystems({
       stage: this.app.stage,
       host: this.host,
@@ -111,11 +126,10 @@ export class PixiGameRuntime {
   }
 
   public startRound(mimicPool: MimicId[]): void {
-    if (!this.textures) {
+    if (!this.textures || !this.attachedCardTextures || !this.mimicSpawner) {
       throw new Error('Cannot start a round before PixiJS assets are loaded')
     }
     this.clearScene()
-    this.mode = 'active'
     this.mimicPool = [...mimicPool]
     this.mainRemainingMs = roundConfig.durationMs
     this.roundElapsedMs = 0
@@ -128,6 +142,8 @@ export class PixiGameRuntime {
     this.jackpotOutcome = null
     this.roundEnding = false
     this.hudSnapshotElapsedMs = interfaceConfig.hudSnapshotIntervalMs
+    this.mimicSpawner.prefillInitialField(this.mimicPool)
+    this.mode = 'active'
     this.emitHudSnapshot()
   }
 
@@ -163,6 +179,7 @@ export class PixiGameRuntime {
     this.effectSystems?.destroy()
     this.app.destroy({ removeView: true }, { children: true })
     this.effectSystems = null
+    this.mimicSpawner = null
     this.attachedCardTextures = null
     this.initialized = false
   }
@@ -262,31 +279,8 @@ export class PixiGameRuntime {
     role: RuntimeMimicEntity['role'],
     decorative: boolean,
   ): boolean {
-    if (!this.textures || !this.attachedCardTextures || this.app.screen.width <= 0) {
-      return false
-    }
-    const entity = createSpawnedRuntimeMimic({
-      runtimeId: this.nextRuntimeEntityId,
-      mimicId,
-      role,
-      decorative,
-      fieldSize: {
-        x: this.app.screen.width,
-        y: this.app.screen.height,
-      },
-      entities: this.entities,
-      mimicTextures: this.textures,
-      attachedCardTextures: this.attachedCardTextures,
-      random: this.random,
-      onAttack: (attackedEntity, position) =>
-        this.attackEntity(attackedEntity, position),
-    })
-    if (!entity) return false
-    this.nextRuntimeEntityId += 1
-
-    this.entities.push(entity)
-    this.fieldLayer.addChild(entity.container)
-    return true
+    if (!this.mimicSpawner || this.app.screen.width <= 0) return false
+    return this.mimicSpawner.spawnTopEdge(mimicId, role, decorative)
   }
 
   private updateEntities(deltaMs: number): void {

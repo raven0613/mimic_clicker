@@ -19,6 +19,7 @@ export interface BalanceSimulationReport {
   targetProfileAverageDefeatedMimics: number
   targetProfileJackpotDefeatRate: number
   stageAverageTotalIncome: Record<StageKey, number>
+  stageAverageInitialFieldMimics: Record<StageKey, number>
   stageAverageGeneratedMimics: Record<StageKey, number>
   stageAverageDefeatedMimics: Record<StageKey, number>
   mimicDefeatTimeMs: Record<MimicId, { average: number; p90: number }>
@@ -54,7 +55,7 @@ export interface BalanceSimulationReport {
       EquipmentLoadoutKey,
       { sword: number; ring: number }
     >
-    averageRingStrikesByLoadout: Record<EquipmentLoadoutKey, number>
+    averageRingDamageStrikesByLoadout: Record<EquipmentLoadoutKey, number>
     averageDefeatedMimicsByLoadout: Record<EquipmentLoadoutKey, number>
     averageOrdinaryIncomeByLoadout: Record<EquipmentLoadoutKey, number>
     jackpotDefeatRateByLoadout: Record<EquipmentLoadoutKey, number>
@@ -156,10 +157,12 @@ function calculateStageAverages(
 ): Pick<
   BalanceSimulationReport,
   | 'stageAverageTotalIncome'
+  | 'stageAverageInitialFieldMimics'
   | 'stageAverageGeneratedMimics'
   | 'stageAverageDefeatedMimics'
 > {
   const stageAverageTotalIncome = {} as Record<StageKey, number>
+  const stageAverageInitialFieldMimics = {} as Record<StageKey, number>
   const stageAverageGeneratedMimics = {} as Record<StageKey, number>
   const stageAverageDefeatedMimics = {} as Record<StageKey, number>
   for (const stage of Object.keys(stagePools) as StageKey[]) {
@@ -170,6 +173,9 @@ function calculateStageAverages(
     stageAverageTotalIncome[stage] = average(
       stageRounds.map((round) => round.ordinaryIncome + round.jackpotIncome),
     )
+    stageAverageInitialFieldMimics[stage] = average(
+      stageRounds.map((round) => round.initialFieldMimicCount),
+    )
     stageAverageGeneratedMimics[stage] = average(
       stageRounds.map((round) => sum(Object.values(round.generatedByMimic))),
     )
@@ -179,6 +185,7 @@ function calculateStageAverages(
   }
   return {
     stageAverageTotalIncome,
+    stageAverageInitialFieldMimics,
     stageAverageGeneratedMimics,
     stageAverageDefeatedMimics,
   }
@@ -194,7 +201,7 @@ function createEquipmentMetrics(
     EquipmentLoadoutKey,
     { sword: number; ring: number }
   >
-  const averageRingStrikesByLoadout = {} as Record<
+  const averageRingDamageStrikesByLoadout = {} as Record<
     EquipmentLoadoutKey,
     number
   >
@@ -220,8 +227,8 @@ function createEquipmentMetrics(
       sword: average(loadoutRounds.map((round) => round.swordAdditionalDamage)),
       ring: average(loadoutRounds.map((round) => round.ringAdditionalDamage)),
     }
-    averageRingStrikesByLoadout[loadout] = average(
-      loadoutRounds.map((round) => round.ringStrikes),
+    averageRingDamageStrikesByLoadout[loadout] = average(
+      loadoutRounds.map((round) => round.ringDamageStrikes),
     )
     averageDefeatedMimicsByLoadout[loadout] = average(
       loadoutRounds.map((round) => round.equipment.defeatedMimics),
@@ -258,7 +265,7 @@ function createEquipmentMetrics(
       sum(rounds.map((round) => round.equipment.activationTimeTotalMs)) /
       Math.max(1, activationCount),
     averageAdditionalDamageByLoadout,
-    averageRingStrikesByLoadout,
+    averageRingDamageStrikesByLoadout,
     averageDefeatedMimicsByLoadout,
     averageOrdinaryIncomeByLoadout,
     jackpotDefeatRateByLoadout,
@@ -365,6 +372,7 @@ function createSummary(report: BalanceSimulationReport): string {
   return [
     `Balance ${report.configVersion}: ${report.caseCount} deterministic cases`,
     `placement rejection max ${(report.maximumPlacementRejectionRatio * 100).toFixed(1)}%`,
+    `initial field ${Object.values(report.stageAverageInitialFieldMimics).map((value) => value.toFixed(1)).join(' → ')} mimics`,
     `spawn share deviation max ${(report.maximumSpawnShareDeviation * 100).toFixed(1)}%`,
     `baseline target defeats ${report.targetProfileAverageDefeatedMimics.toFixed(1)} mimics/round`,
     `baseline target Jackpot defeat ${(report.targetProfileJackpotDefeatRate * 100).toFixed(1)}%`,

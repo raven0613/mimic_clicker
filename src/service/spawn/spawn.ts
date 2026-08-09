@@ -6,15 +6,20 @@ import type {
   RectangleBounds,
 } from '../../types/game'
 
-interface SpawnPositionInput {
+export interface SpawnPositionInput {
   fieldWidth: number
   cardWidth: number
   cardHeight: number
-  spawnY: number
+  minimumY: number
+  maximumY: number
   occupiedBounds: RectangleBounds[]
 }
 
-interface SpawnPosition {
+interface FillSpawnAreaInput extends SpawnPositionInput {
+  maximumPositionCount: number
+}
+
+export interface SpawnPosition {
   x: number
   y: number
 }
@@ -70,7 +75,7 @@ export function selectSpawnPosition(
     input.fieldWidth -
     spawnConfig.horizontalSafeMarginPixels -
     input.cardWidth
-  if (maximumX < minimumX) {
+  if (maximumX < minimumX || input.maximumY < input.minimumY) {
     return null
   }
 
@@ -80,7 +85,10 @@ export function selectSpawnPosition(
   for (let index = 0; index < spawnConfig.candidatePositionCount; index += 1) {
     const candidate = {
       x: minimumX + random() * (maximumX - minimumX),
-      y: input.spawnY,
+      y:
+        input.minimumY === input.maximumY
+          ? input.minimumY
+          : input.minimumY + random() * (input.maximumY - input.minimumY),
     }
     const candidateBounds = {
       ...candidate,
@@ -103,4 +111,42 @@ export function selectSpawnPosition(
   }
 
   return bestCandidate
+}
+
+export function createInitialFieldSpawnArea(fieldHeight: number): {
+  minimumY: number
+  maximumY: number
+} {
+  return {
+    minimumY: 0,
+    maximumY:
+      fieldHeight -
+      spawnConfig.initialFieldBottomNoSpawnHeightPixels -
+      spawnConfig.cardHeightPixels,
+  }
+}
+
+export function selectSpawnPositionsUntilFull(
+  input: FillSpawnAreaInput,
+  random: RandomSource,
+): SpawnPosition[] {
+  const occupiedBounds = [...input.occupiedBounds]
+  const positions: SpawnPosition[] = []
+
+  while (positions.length < input.maximumPositionCount) {
+    const position = selectSpawnPosition(
+      { ...input, occupiedBounds },
+      random,
+    )
+    if (!position) break
+
+    positions.push(position)
+    occupiedBounds.push({
+      ...position,
+      width: input.cardWidth,
+      height: input.cardHeight,
+    })
+  }
+
+  return positions
 }

@@ -98,8 +98,11 @@ export const gameFlowMachine = setup({
       },
     },
     playing: {
-      initial: 'jackpotDisguised',
+      initial: 'jackpotWaitingToAppear',
       states: {
+        jackpotWaitingToAppear: {
+          on: { JACKPOT_RETURNED: 'jackpotDisguised' },
+        },
         jackpotDisguised: {
           on: {
             JACKPOT_LEFT_DISGUISED: 'jackpotWaitingToReturn',

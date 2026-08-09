@@ -41,7 +41,7 @@ export interface RoundEquipmentMetrics {
   activationCount: number
   swordAdditionalDamage: number
   ringAdditionalDamage: number
-  ringStrikes: number
+  ringDamageStrikes: number
   defeatedMimics: number
   ordinaryIncome: number
   jackpotRevealed: boolean
@@ -76,7 +76,6 @@ interface CombatTarget extends SimulatedAttachedContent {
 interface RingStrikeEvent {
   kind: 'ringStrike'
   atMs: number
-  batchId: number
   targetId: number
   damage: number
 }
@@ -102,7 +101,6 @@ export function simulateEquipmentCombatRound(
   const targets = input.ordinaryMimics.map(toCombatTarget)
   const events: EquipmentCombatEvent[] = []
   let acceptedManualHitCount = 0
-  let nextRingBatchId = 1
 
   for (const mimic of input.ordinaryMimics) addGenerated(metrics, mimic)
   addGenerated(metrics, input.shellContent)
@@ -176,7 +174,7 @@ export function simulateEquipmentCombatRound(
       )
     } else {
       metrics.ringAdditionalDamage += Math.min(healthBeforeDamage, damage)
-      metrics.ringStrikes += 1
+      metrics.ringDamageStrikes += 1
     }
     if (target.health > 0) return
 
@@ -202,23 +200,6 @@ export function simulateEquipmentCombatRound(
     }
     metrics.jackpotDefeated = true
     resolveDrops(target, atMs, true)
-  }
-
-  const cancelRingBatch = (batchId: number, atMs: number) => {
-    for (let index = events.length - 1; index >= 0; index -= 1) {
-      const event = events[index]
-      if (event.kind === 'ringStrike' && event.batchId === batchId) {
-        events.splice(index, 1)
-      }
-    }
-    const remainingStrikes = events
-      .filter((event): event is RingStrikeEvent => event.kind === 'ringStrike')
-      .sort((first, second) => first.atMs - second.atMs)
-    for (let index = 0; index < remainingStrikes.length; index += 1) {
-      remainingStrikes[index].atMs =
-        atMs +
-        equipmentConfig.ring.additionalHitIntervalMs * (index + 1)
-    }
   }
 
   const processEventsThrough = (throughMs: number, inclusive = true) => {
@@ -251,12 +232,8 @@ export function simulateEquipmentCombatRound(
         event.targetId,
         event.atMs,
       )
-      if (!target) {
-        cancelRingBatch(event.batchId, event.atMs)
-        continue
-      }
+      if (!target) continue
       damageTarget(target, event.damage, event.atMs, 'ring')
-      if (target.health === 0) cancelRingBatch(event.batchId, event.atMs)
     }
   }
 
@@ -295,8 +272,6 @@ export function simulateEquipmentCombatRound(
       continue
     }
     acceptedManualHitCount = 0
-    const batchId = nextRingBatchId
-    nextRingBatchId += 1
     let queueTailAtMs = Math.max(
       clickAtMs,
       ...events
@@ -308,7 +283,6 @@ export function simulateEquipmentCombatRound(
       events.push({
         kind: 'ringStrike',
         atMs: queueTailAtMs,
-        batchId,
         targetId: target.runtimeId,
         damage:
           weaponDamage * equipmentConfig.ring.additionalDamageMultiplier,
@@ -428,7 +402,7 @@ function createEmptyMetrics(): RoundEquipmentMetrics {
     activationCount: 0,
     swordAdditionalDamage: 0,
     ringAdditionalDamage: 0,
-    ringStrikes: 0,
+    ringDamageStrikes: 0,
     defeatedMimics: 0,
     ordinaryIncome: 0,
     jackpotRevealed: false,

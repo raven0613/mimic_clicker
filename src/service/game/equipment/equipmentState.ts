@@ -3,6 +3,7 @@ import {
   equipmentConfig,
   type EquipmentId,
 } from '../../../configs/equipmentConfig'
+import type { Vector2 } from '../../../types/game'
 
 export interface EquipmentDrop {
   id: EquipmentId
@@ -20,12 +21,13 @@ export interface EquipmentReservation extends EquipmentDrop {
 
 export interface AcceptedManualHit {
   targetId: number
+  targetPosition: Vector2
   triggeringWeaponDamage: number
 }
 
 export interface RingStrike {
-  batchId: number
   targetId: number
+  targetPosition: Vector2
   damage: number
 }
 
@@ -48,7 +50,6 @@ export class EquipmentState {
   private readonly storedEquipment: EquipmentId[] = []
   private readonly pendingRingStrikes: RingStrike[] = []
   private nextReservationId = 1
-  private nextRingBatchId = 1
   private acceptedManualHitCount = 0
   private ringTimeUntilNextStrikeMs: number | null = null
 
@@ -167,15 +168,13 @@ export class EquipmentState {
     }
 
     this.acceptedManualHitCount = 0
-    const batchId = this.nextRingBatchId
-    this.nextRingBatchId += 1
     const damage =
       hit.triggeringWeaponDamage *
       equipmentConfig.ring.additionalDamageMultiplier
     for (let ringIndex = 0; ringIndex < ringCount; ringIndex += 1) {
       this.pendingRingStrikes.push({
-        batchId,
         targetId: hit.targetId,
+        targetPosition: { ...hit.targetPosition },
         damage,
       })
     }
@@ -213,17 +212,6 @@ export class EquipmentState {
     return strike ? [strike] : []
   }
 
-  public cancelRingBatch(batchId: number): void {
-    for (let index = this.pendingRingStrikes.length - 1; index >= 0; index -= 1) {
-      if (this.pendingRingStrikes[index].batchId === batchId) {
-        this.pendingRingStrikes.splice(index, 1)
-      }
-    }
-    if (this.pendingRingStrikes.length === 0) {
-      this.ringTimeUntilNextStrikeMs = null
-    }
-  }
-
   public clear(): void {
     this.reservations.clear()
     this.storedEquipment.length = 0
@@ -231,7 +219,6 @@ export class EquipmentState {
     this.acceptedManualHitCount = 0
     this.ringTimeUntilNextStrikeMs = null
     this.nextReservationId = 1
-    this.nextRingBatchId = 1
     for (let index = 0; index < this.slots.length; index += 1) {
       this.slots[index] = { status: 'empty' }
     }

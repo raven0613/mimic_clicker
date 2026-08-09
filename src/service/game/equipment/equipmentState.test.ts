@@ -73,6 +73,7 @@ describe('equipment state', () => {
     ) {
       state.recordAcceptedManualHit({
         targetId: 7,
+        targetPosition: { x: 100, y: 200 },
         triggeringWeaponDamage: combatConfig.initialWeaponDamage,
       })
     }
@@ -83,6 +84,7 @@ describe('equipment state', () => {
     const [firstStrike] = state.advanceRingQueue(1)
     expect(firstStrike).toMatchObject({
       targetId: 7,
+      targetPosition: { x: 100, y: 200 },
       damage:
         combatConfig.initialWeaponDamage *
         equipmentConfig.ring.additionalDamageMultiplier,
@@ -93,7 +95,7 @@ describe('equipment state', () => {
     ).toEqual([
       expect.objectContaining({
         targetId: 7,
-        batchId: firstStrike.batchId,
+        targetPosition: { x: 100, y: 200 },
       }),
     ])
   })
@@ -109,11 +111,13 @@ describe('equipment state', () => {
     ) {
       state.recordAcceptedManualHit({
         targetId: 3,
+        targetPosition: { x: 30, y: 40 },
         triggeringWeaponDamage: combatConfig.initialWeaponDamage,
       })
     }
     state.recordAcceptedManualHit({
       targetId: 4,
+      targetPosition: { x: 50, y: 60 },
       triggeringWeaponDamage: combatConfig.initialWeaponDamage,
     })
 
@@ -161,22 +165,12 @@ describe('equipment state', () => {
     ).toEqual([])
   })
 
-  it('cancels only the invalid target batch and clears all round state', () => {
+  it('clears all pending Ring strikes with the round state', () => {
     const state = new EquipmentState()
     const [ring] = state.reserveDrops([{ id: 'ring', rarity: 'SR' }])
     state.completeReservation(ring.reservationId)
 
     queueRingBatch(state, 3)
-    queueRingBatch(state, 4)
-    const [firstStrike] = state.advanceRingQueue(
-      equipmentConfig.ring.additionalHitIntervalMs,
-    )
-    state.cancelRingBatch(firstStrike.batchId)
-
-    expect(
-      state.advanceRingQueue(equipmentConfig.ring.additionalHitIntervalMs),
-    ).toEqual([expect.objectContaining({ targetId: 4 })])
-
     state.clear()
     expect(state.getEquippedCount('ring')).toBe(0)
     expect(state.getStoredEquipment()).toEqual([])
@@ -194,6 +188,7 @@ function queueRingBatch(state: EquipmentState, targetId: number): void {
   ) {
     state.recordAcceptedManualHit({
       targetId,
+      targetPosition: { x: targetId * 10, y: targetId * 20 },
       triggeringWeaponDamage: combatConfig.initialWeaponDamage,
     })
   }

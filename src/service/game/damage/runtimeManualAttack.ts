@@ -30,6 +30,10 @@ export function performRuntimeManualAttack(
   input.addHitEffect(input.position)
   input.equipment?.recordAcceptedManualHit({
     targetId: input.entity.runtimeId,
+    targetPosition: {
+      x: input.entity.logicalX,
+      y: input.entity.logicalY,
+    },
     triggeringWeaponDamage: weaponDamage,
   })
 }

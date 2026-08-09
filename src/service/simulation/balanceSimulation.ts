@@ -6,9 +6,9 @@ import { jackpotConfig } from '../../configs/jackpotConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import { roundConfig } from '../../configs/roundConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
-import type { JackpotOutcome, MimicId, RectangleBounds } from '../../types/game'
+import type { JackpotOutcome, MimicId } from '../../types/game'
 import { calculateJackpotReward } from '../progression/progression'
-import { selectSpawnPosition, selectWeightedMimicId } from '../spawn/spawn'
+import { selectWeightedMimicId } from '../spawn/spawn'
 import type { EffectCardId } from '../game/attachedCards/attachedCardRules'
 import {
   calculateInitialThunderDamage,
@@ -31,13 +31,16 @@ import {
 } from './balanceSimulationReport'
 import {
   simulateEffectCardCombat,
-  type BalanceCombatMimic,
 } from './effectCardBalanceSimulation'
 import {
   simulateEquipmentCombatRound,
   type RoundEquipmentMetrics,
 } from './equipmentBalanceSimulation'
 import { simulateRequiredWeaponHits } from './weaponAttackSimulation'
+import {
+  calculateMimicFlowExitDurationMs,
+  simulateSpawnStream,
+} from './spawnStreamSimulation'
 
 export type StageKey = 'normalOnly' | 'normalRare1' | 'allMimics'
 type PlayerModel = keyof typeof balanceSimulationConfig.playerClickRatesPerSecond
@@ -52,6 +55,7 @@ export interface SimulatedRound {
   jackpotCase: JackpotOutcome
   equipmentLoadout: EquipmentLoadoutKey
   generatedByMimic: Record<MimicId, number>
+  initialFieldMimicCount: number
   defeatedByMimic: Record<MimicId, number>
   placementAttempts: number
   placementRejections: number
@@ -75,16 +79,9 @@ export interface SimulatedRound {
   maximumEffectChainDepth: number
   swordAdditionalDamage: number
   ringAdditionalDamage: number
-  ringStrikes: number
+  ringDamageStrikes: number
   equipment: RoundEquipmentMetrics
   finished: boolean
-}
-
-interface SpawnStreamMetrics {
-  generatedByMimic: Record<MimicId, number>
-  placementAttempts: number
-  placementRejections: number
-  spawnedMimics: BalanceCombatMimic[]
 }
 
 const stagePools: Record<StageKey, MimicId[]> = {
@@ -93,94 +90,15 @@ const stagePools: Record<StageKey, MimicId[]> = {
   allMimics: ['normal', 'rare1', 'rare2'],
 }
 
-function emptyMimicCounts(): Record<MimicId, number> {
-  return { normal: 0, rare1: 0, rare2: 0 }
-}
-
-function simulateSpawnStream(
-  pool: MimicId[],
-  seed: number,
-): SpawnStreamMetrics {
-  const random = createSeededRandom(seed)
-  const generatedByMimic = emptyMimicCounts()
-  const activeBounds: Array<RectangleBounds & { updatedAtMs: number }> = []
-  const spawnedMimics: BalanceCombatMimic[] = []
-  const movementSpeed =
-    (balanceSimulationConfig.field.heightPixels +
-      spawnConfig.cardHeightPixels * 2) /
-    (roundConfig.mimicFieldTravelDurationMs / 1_000)
-  let nextSpawnMs = roundConfig.initialSpawnDelayMs
-  let placementAttempts = 0
-  let placementRejections = 0
-
-  while (nextSpawnMs < roundConfig.durationMs) {
-    for (const bounds of activeBounds) {
-      bounds.y += movementSpeed * ((nextSpawnMs - bounds.updatedAtMs) / 1_000)
-      bounds.updatedAtMs = nextSpawnMs
-    }
-    for (let index = activeBounds.length - 1; index >= 0; index -= 1) {
-      if (activeBounds[index].y > balanceSimulationConfig.field.heightPixels) {
-        activeBounds.splice(index, 1)
-      }
-    }
-
-    placementAttempts += 1
-    const spawnY = -spawnConfig.cardHeightPixels + spawnConfig.spawnYInsetPixels
-    const position = selectSpawnPosition(
-      {
-        fieldWidth: balanceSimulationConfig.field.widthPixels,
-        cardWidth: spawnConfig.cardWidthPixels,
-        cardHeight: spawnConfig.cardHeightPixels,
-        spawnY,
-        occupiedBounds: activeBounds,
-      },
-      random,
-    )
-    if (!position) {
-      placementRejections += 1
-      nextSpawnMs += spawnConfig.retryDelayMs
-      continue
-    }
-
-    const mimicId = selectWeightedMimicId(pool, random)
-    generatedByMimic[mimicId] += 1
-    const attachedContent = selectSimulatedAttachedContent(mimicId, random)
-    spawnedMimics.push({
-      id: spawnedMimics.length,
-      mimicId,
-      role: 'regular',
-      health: mimicConfigs[mimicId].maximumHealth,
-      logicalX: position.x + spawnConfig.cardWidthPixels / 2,
-      logicalY: position.y + spawnConfig.cardHeightPixels / 2,
-      jackpotPhase: null,
-      spawnedAtMs: nextSpawnMs,
-      initialY: position.y + spawnConfig.cardHeightPixels / 2,
-      ...attachedContent,
-    })
-    activeBounds.push({
-      x: position.x,
-      y: position.y,
-      width: spawnConfig.cardWidthPixels,
-      height: spawnConfig.cardHeightPixels,
-      updatedAtMs: nextSpawnMs,
-    })
-    nextSpawnMs += roundConfig.regularSpawnIntervalMs
-  }
-  return {
-    generatedByMimic,
-    placementAttempts,
-    placementRejections,
-    spawnedMimics,
-  }
-}
-
 function calculateJackpotOpportunities(): number {
   let opportunities = 0
   let appearanceMs = roundConfig.initialJackpotSpawnDelayMs
   while (appearanceMs < roundConfig.durationMs) {
     opportunities += 1
     appearanceMs +=
-      roundConfig.mimicFieldTravelDurationMs +
+      calculateMimicFlowExitDurationMs(
+        -spawnConfig.cardHeightPixels + spawnConfig.spawnYInsetPixels,
+      ) +
       roundConfig.jackpotReturnBaseDelayMs +
       opportunities * roundConfig.jackpotReturnAdditionalDelayPerMissMs
   }
@@ -405,6 +323,7 @@ function simulateRound(
     jackpotCase,
     equipmentLoadout,
     generatedByMimic: spawnMetrics.generatedByMimic,
+    initialFieldMimicCount: spawnMetrics.initialFieldMimicCount,
     placementAttempts: spawnMetrics.placementAttempts,
     placementRejections: spawnMetrics.placementRejections,
     ...combatMetrics,
@@ -433,7 +352,7 @@ function simulateRound(
     maximumEffectChainDepth: combatMetrics.maximumEffectChainDepth,
     swordAdditionalDamage: equipment.swordAdditionalDamage,
     ringAdditionalDamage: equipment.ringAdditionalDamage,
-    ringStrikes: equipment.ringStrikes,
+    ringDamageStrikes: equipment.ringDamageStrikes,
     equipment,
     finished: true,
   }

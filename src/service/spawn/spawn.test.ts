@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import { mimicConfigs } from '../../configs/mimicConfigs'
+import { spawnConfig } from '../../configs/spawnConfig'
 import { createSeededRandom } from '../simulation/createSeededRandom'
 import {
   calculateOverlapRatio,
+  createInitialFieldSpawnArea,
+  selectSpawnPositionsUntilFull,
   selectSpawnPosition,
   selectWeightedMimicId,
 } from './spawn'
@@ -39,7 +42,8 @@ describe('spawn selection', () => {
         fieldWidth: 1_000,
         cardWidth: 160,
         cardHeight: 220,
-        spawnY: 50,
+        minimumY: 50,
+        maximumY: 50,
         occupiedBounds: [{ x: 80, y: 20, width: 160, height: 220 }],
       },
       () => candidates[index++] ?? candidates.at(-1)!,
@@ -61,12 +65,98 @@ describe('spawn selection', () => {
         fieldWidth: 500,
         cardWidth: 420,
         cardHeight: 220,
-        spawnY: 50,
+        minimumY: 50,
+        maximumY: 50,
         occupiedBounds: [{ x: 40, y: 50, width: 420, height: 220 }],
       },
       () => 0.5,
     )
 
     expect(selected).toBeNull()
+  })
+
+  it('selects both axes continuously inside a rectangular spawn area', () => {
+    const minimumY = spawnConfig.cardHeightPixels / 2
+    const maximumY = minimumY + spawnConfig.cardHeightPixels
+    const randomValues = [0.25, 0.75]
+    let randomIndex = 0
+
+    const selected = selectSpawnPosition(
+      {
+        fieldWidth:
+          spawnConfig.horizontalSafeMarginPixels * 2 +
+          spawnConfig.cardWidthPixels * 3,
+        cardWidth: spawnConfig.cardWidthPixels,
+        cardHeight: spawnConfig.cardHeightPixels,
+        minimumY,
+        maximumY,
+        occupiedBounds: [],
+      },
+      () => randomValues[randomIndex++] ?? 0.5,
+    )
+
+    expect(selected).toEqual({
+      x:
+        spawnConfig.horizontalSafeMarginPixels +
+        0.25 * spawnConfig.cardWidthPixels * 2,
+      y: minimumY + 0.75 * (maximumY - minimumY),
+    })
+  })
+
+  it('excludes the configured bottom zone from the initial field area', () => {
+    const fieldHeight =
+      spawnConfig.initialFieldBottomNoSpawnHeightPixels +
+      spawnConfig.cardHeightPixels * 3
+
+    expect(createInitialFieldSpawnArea(fieldHeight)).toEqual({
+      minimumY: 0,
+      maximumY:
+        fieldHeight -
+        spawnConfig.initialFieldBottomNoSpawnHeightPixels -
+        spawnConfig.cardHeightPixels,
+    })
+  })
+
+  it('naturally stops initial filling when no further position is valid', () => {
+    const placements = selectSpawnPositionsUntilFull(
+      {
+        fieldWidth:
+          spawnConfig.horizontalSafeMarginPixels * 2 +
+          spawnConfig.cardWidthPixels,
+        cardWidth: spawnConfig.cardWidthPixels,
+        cardHeight: spawnConfig.cardHeightPixels,
+        minimumY: 0,
+        maximumY: 0,
+        occupiedBounds: [],
+        maximumPositionCount: spawnConfig.maximumConcurrentMimics,
+      },
+      () => 0.5,
+    )
+
+    expect(placements).toHaveLength(1)
+  })
+
+  it('returns no initial placements when the field is too short for a card', () => {
+    const area = createInitialFieldSpawnArea(
+      spawnConfig.initialFieldBottomNoSpawnHeightPixels +
+        spawnConfig.cardHeightPixels -
+        1,
+    )
+
+    expect(
+      selectSpawnPositionsUntilFull(
+        {
+          fieldWidth:
+            spawnConfig.horizontalSafeMarginPixels * 2 +
+            spawnConfig.cardWidthPixels,
+          cardWidth: spawnConfig.cardWidthPixels,
+          cardHeight: spawnConfig.cardHeightPixels,
+          ...area,
+          occupiedBounds: [],
+          maximumPositionCount: spawnConfig.maximumConcurrentMimics,
+        },
+        () => 0.5,
+      ),
+    ).toEqual([])
   })
 })

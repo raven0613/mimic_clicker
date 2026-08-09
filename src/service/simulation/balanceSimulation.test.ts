@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
 import { effectCardConfig } from '../../configs/effectCardConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
+import { spawnConfig } from '../../configs/spawnConfig'
 import { runBalanceSimulation } from './balanceSimulation'
 
 describe('fixed-seed balance simulation', () => {
@@ -39,6 +40,14 @@ describe('fixed-seed balance simulation', () => {
     expect(report.maximumSpawnShareDeviation).toBeLessThanOrEqual(
       balanceSimulationConfig.targets.maximumSpawnShareDeviation,
     )
+    for (const initialFieldCount of Object.values(
+      report.stageAverageInitialFieldMimics,
+    )) {
+      expect(initialFieldCount).toBeGreaterThan(0)
+      expect(initialFieldCount).toBeLessThanOrEqual(
+        spawnConfig.maximumConcurrentMimics,
+      )
+    }
     expect(report.targetProfileAverageDefeatedMimics).toBeGreaterThanOrEqual(
       balanceSimulationConfig.targets.targetProfileDefeatedMimics.minimum,
     )
@@ -127,9 +136,9 @@ describe('fixed-seed balance simulation', () => {
       report.equipmentMetrics.averageAdditionalDamageByLoadout.singleRing.ring,
     )
     expect(
-      report.equipmentMetrics.averageRingStrikesByLoadout.none,
+      report.equipmentMetrics.averageRingDamageStrikesByLoadout.none,
     ).toBeLessThan(
-      report.equipmentMetrics.averageRingStrikesByLoadout.singleRing,
+      report.equipmentMetrics.averageRingDamageStrikesByLoadout.singleRing,
     )
     expect(
       report.equipmentMetrics.averageDefeatedMimicsByLoadout.duplicateSword,

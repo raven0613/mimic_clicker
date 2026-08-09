@@ -205,10 +205,6 @@ export class EquipmentRewardSystem {
     return this.state.advanceRingQueue(deltaMs, includeEndpoint)
   }
 
-  public cancelRingBatch(batchId: number): void {
-    this.state.cancelRingBatch(batchId)
-  }
-
   public update(deltaMs: number): void {
     this.haloElapsedMs += deltaMs
     this.updateFailedDrops(deltaMs)

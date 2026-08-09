@@ -1,7 +1,13 @@
 import { attachedCardConfig } from '../../configs/attachedCardConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
 import type { MimicId, RandomSource, Vector2 } from '../../types/game'
-import { selectSpawnPosition } from '../spawn/spawn'
+import {
+  createInitialFieldSpawnArea,
+  selectSpawnPosition,
+  selectSpawnPositionsUntilFull,
+  selectWeightedMimicId,
+  type SpawnPosition,
+} from '../spawn/spawn'
 import {
   selectAttachedCardAssignments,
   selectHiddenEquipmentId,
@@ -10,11 +16,21 @@ import type { LoadedAttachedCardTextures } from './assets/runtimeAssets'
 import { createRuntimeMimicEntity } from './runtimeEntityFactory'
 import type { LoadedMimicTextures, RuntimeMimicEntity } from './runtimeTypes'
 
-interface CreateSpawnedRuntimeMimicInput {
+interface CreatePositionedRuntimeMimicInput {
   runtimeId: number
   mimicId: MimicId
   role: RuntimeMimicEntity['role']
   decorative: boolean
+  fieldSize: Vector2
+  position: SpawnPosition
+  mimicTextures: LoadedMimicTextures
+  attachedCardTextures: LoadedAttachedCardTextures
+  random: RandomSource
+  onAttack: (entity: RuntimeMimicEntity, position: Vector2) => void
+}
+
+interface RuntimeSpawnContext {
+  nextRuntimeId: number
   fieldSize: Vector2
   entities: readonly RuntimeMimicEntity[]
   mimicTextures: LoadedMimicTextures
@@ -23,36 +39,133 @@ interface CreateSpawnedRuntimeMimicInput {
   onAttack: (entity: RuntimeMimicEntity, position: Vector2) => void
 }
 
-export function createSpawnedRuntimeMimic(
-  input: CreateSpawnedRuntimeMimicInput,
+interface CreateTopEdgeRuntimeMimicInput extends RuntimeSpawnContext {
+  mimicId: MimicId
+  role: RuntimeMimicEntity['role']
+  decorative: boolean
+}
+
+interface CreateInitialFieldRuntimeMimicsInput extends RuntimeSpawnContext {
+  mimicPool: MimicId[]
+}
+
+interface RuntimeMimicSpawnerInput {
+  getFieldSize: () => Vector2
+  getEntities: () => readonly RuntimeMimicEntity[]
+  mimicTextures: LoadedMimicTextures
+  attachedCardTextures: LoadedAttachedCardTextures
+  random: RandomSource
+  onAttack: (entity: RuntimeMimicEntity, position: Vector2) => void
+  onSpawn: (entity: RuntimeMimicEntity) => void
+}
+
+export class RuntimeMimicSpawner {
+  private readonly input: RuntimeMimicSpawnerInput
+  private nextRuntimeId = 1
+
+  public constructor(input: RuntimeMimicSpawnerInput) {
+    this.input = input
+  }
+
+  public spawnTopEdge(
+    mimicId: MimicId,
+    role: RuntimeMimicEntity['role'],
+    decorative: boolean,
+  ): boolean {
+    const entity = createTopEdgeRuntimeMimic({
+      ...this.createContext(),
+      mimicId,
+      role,
+      decorative,
+    })
+    if (!entity) return false
+
+    this.addEntity(entity)
+    return true
+  }
+
+  public prefillInitialField(mimicPool: MimicId[]): void {
+    const entities = createInitialFieldRuntimeMimics({
+      ...this.createContext(),
+      mimicPool,
+    })
+    for (const entity of entities) this.addEntity(entity)
+  }
+
+  private createContext(): RuntimeSpawnContext {
+    return {
+      nextRuntimeId: this.nextRuntimeId,
+      fieldSize: this.input.getFieldSize(),
+      entities: this.input.getEntities(),
+      mimicTextures: this.input.mimicTextures,
+      attachedCardTextures: this.input.attachedCardTextures,
+      random: this.input.random,
+      onAttack: this.input.onAttack,
+    }
+  }
+
+  private addEntity(entity: RuntimeMimicEntity): void {
+    this.nextRuntimeId += 1
+    this.input.onSpawn(entity)
+  }
+}
+
+function createTopEdgeRuntimeMimic(
+  input: CreateTopEdgeRuntimeMimicInput,
 ): RuntimeMimicEntity | null {
-  const cardWidth = spawnConfig.cardWidthPixels
-  const cardHeight = spawnConfig.cardHeightPixels
-  const spawnY = -cardHeight + spawnConfig.spawnYInsetPixels
-  const occupiedBounds = input.entities
-    .filter(
-      (entity) =>
-        Math.abs(entity.logicalY - spawnY) <=
-        spawnConfig.placementCheckVerticalRangePixels,
-    )
-    .map((entity) => ({
-      x: entity.logicalX - cardWidth / 2,
-      y: entity.logicalY - cardHeight / 2,
-      width: cardWidth,
-      height: cardHeight,
-    }))
+  const spawnY =
+    -spawnConfig.cardHeightPixels + spawnConfig.spawnYInsetPixels
   const position = selectSpawnPosition(
     {
       fieldWidth: input.fieldSize.x,
-      cardWidth,
-      cardHeight,
-      spawnY,
-      occupiedBounds,
+      cardWidth: spawnConfig.cardWidthPixels,
+      cardHeight: spawnConfig.cardHeightPixels,
+      minimumY: spawnY,
+      maximumY: spawnY,
+      occupiedBounds: createOccupiedBounds(input.entities),
     },
     input.random,
   )
   if (!position) return null
 
+  return createPositionedRuntimeMimic({
+    ...input,
+    runtimeId: input.nextRuntimeId,
+    position,
+  })
+}
+
+function createInitialFieldRuntimeMimics(
+  input: CreateInitialFieldRuntimeMimicsInput,
+): RuntimeMimicEntity[] {
+  const positions = selectSpawnPositionsUntilFull(
+    {
+      fieldWidth: input.fieldSize.x,
+      cardWidth: spawnConfig.cardWidthPixels,
+      cardHeight: spawnConfig.cardHeightPixels,
+      ...createInitialFieldSpawnArea(input.fieldSize.y),
+      occupiedBounds: createOccupiedBounds(input.entities),
+      maximumPositionCount:
+        spawnConfig.maximumConcurrentMimics - input.entities.length,
+    },
+    input.random,
+  )
+
+  return positions.map((position, index) =>
+    createPositionedRuntimeMimic({
+      ...input,
+      runtimeId: input.nextRuntimeId + index,
+      mimicId: selectWeightedMimicId(input.mimicPool, input.random),
+      role: 'regular',
+      decorative: false,
+      position,
+    }),
+  )
+}
+
+function createPositionedRuntimeMimic(
+  input: CreatePositionedRuntimeMimicInput,
+): RuntimeMimicEntity {
   const assignments = selectAttachedCardAssignments({
     decorative: input.decorative,
     maximumCount: attachedCardConfig.capacity.byMimic[input.mimicId],
@@ -63,8 +176,8 @@ export function createSpawnedRuntimeMimic(
     mimicId: input.mimicId,
     role: input.role,
     decorative: input.decorative,
-    centerX: position.x + cardWidth / 2,
-    centerY: position.y + cardHeight / 2,
+    centerX: input.position.x + spawnConfig.cardWidthPixels / 2,
+    centerY: input.position.y + spawnConfig.cardHeightPixels / 2,
     fieldHeight: input.fieldSize.y,
     textures: input.mimicTextures,
     attachedCardTextures: input.attachedCardTextures,
@@ -78,4 +191,15 @@ export function createSpawnedRuntimeMimic(
     ),
     onAttack: input.onAttack,
   })
+}
+
+function createOccupiedBounds(
+  entities: readonly RuntimeMimicEntity[],
+): Array<{ x: number; y: number; width: number; height: number }> {
+  return entities.map((entity) => ({
+    x: entity.logicalX - spawnConfig.cardWidthPixels / 2,
+    y: entity.logicalY - spawnConfig.cardHeightPixels / 2,
+    width: spawnConfig.cardWidthPixels,
+    height: spawnConfig.cardHeightPixels,
+  }))
 }
