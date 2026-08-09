@@ -6,6 +6,8 @@ import { mimicConfigs } from '../../configs/mimicConfigs'
 import type { ProgressData } from '../../types/game'
 import { completeRound } from '../progression/progression'
 import { createInitialProgress } from '../progression/createInitialProgress'
+import { calculateEquipmentSale } from '../settlement/equipmentSale'
+import { createRoundResult } from '../settlement/roundSettlement'
 import { createSaveRepository } from './saveRepository'
 
 let databaseSequence = 0
@@ -30,22 +32,30 @@ describe('save repository', () => {
   it('persists a completed round and its pending unlock together', async () => {
     const repository = createRepository()
     const initial = await repository.loadOrCreate()
-    const settlement = completeRound(initial, {
-      earnedGold: mimicConfigs.normal.baseReward,
+    const result = createRoundResult({
+      combatGold: mimicConfigs.normal.baseReward,
+      equipmentSale: calculateEquipmentSale(['sword', 'ring']),
       defeatedMimics: 1,
       jackpotOutcome: 'escaped',
     })
+    const settlement = completeRound(initial, result)
 
     await repository.replace(settlement.progress)
 
-    expect(await repository.loadOrCreate()).toEqual(settlement.progress)
+    const reloaded = await repository.loadOrCreate()
+    expect(reloaded).toEqual(settlement.progress)
+    expect(reloaded.latestRoundResult).toEqual(result)
+    expect(reloaded.gold).toBe(initial.gold + result.totalGold)
   })
 
   it('resets to a new initial progress document', async () => {
     const repository = createRepository()
     const initial = await repository.loadOrCreate()
     const settlement = completeRound(initial, {
-      earnedGold: mimicConfigs.normal.baseReward,
+      combatGold: mimicConfigs.normal.baseReward,
+      equipmentSaleGold: 0,
+      totalGold: mimicConfigs.normal.baseReward,
+      equipmentSales: [],
       defeatedMimics: 1,
       jackpotOutcome: 'defeated',
     })

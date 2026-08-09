@@ -195,6 +195,10 @@ export class EquipmentRewardSystem {
     return this.state.calculateWeaponDamage(baseDamage)
   }
 
+  public getSettlementEquipmentSnapshot(): EquipmentId[] {
+    return this.state.getSettlementEquipmentSnapshot()
+  }
+
   public recordAcceptedManualHit(hit: AcceptedManualHit): void {
     this.state.recordAcceptedManualHit(hit)
   }

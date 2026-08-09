@@ -1,3 +1,5 @@
+import type { EquipmentId } from '../configs/equipmentConfig'
+
 export const mimicIds = ['normal', 'rare1', 'rare2'] as const
 
 export type MimicId = (typeof mimicIds)[number]
@@ -8,18 +10,29 @@ export type JackpotOutcome =
   | 'escaped'
   | 'roundExpiredDuringChase'
 
+export interface EquipmentSaleGroup {
+  equipmentId: EquipmentId
+  quantity: number
+  unitPriceGold: number
+  subtotalGold: number
+}
+
 export interface RoundResult {
-  earnedGold: number
+  combatGold: number
+  equipmentSaleGold: number
+  totalGold: number
+  equipmentSales: EquipmentSaleGroup[]
   defeatedMimics: number
   jackpotOutcome: JackpotOutcome
 }
 
 export interface ProgressData {
-  schemaVersion: 1
+  schemaVersion: 2
   completedRounds: number
   gold: number
   unlockedMimicIds: MimicId[]
   pendingUnlockMimicIds: MimicId[]
+  latestRoundResult: RoundResult | null
 }
 
 export interface RectangleBounds {

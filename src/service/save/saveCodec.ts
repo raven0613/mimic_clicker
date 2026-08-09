@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { saveConfig } from '../../configs/saveConfig'
 import type { ProgressData } from '../../types/game'
-import { progressSchema } from './progressSchema'
+import { parseProgress, progressSchema } from './progressSchema'
 
 const exportEnvelopeSchema = z
   .object({
@@ -59,7 +59,7 @@ export function decodeProgress(encoded: string): ProgressData {
     if (checksum(envelope.payload) !== envelope.checksum) {
       throw new Error('Import code integrity check failed')
     }
-    return progressSchema.parse(JSON.parse(envelope.payload))
+    return parseProgress(JSON.parse(envelope.payload))
   } catch (error) {
     if (error instanceof Error && /length|integrity/.test(error.message)) {
       throw error

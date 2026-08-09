@@ -53,7 +53,7 @@ export class EquipmentState {
   private acceptedManualHitCount = 0
   private ringTimeUntilNextStrikeMs: number | null = null
 
-  public constructor(slotCount = equipmentConfig.initialSlotCount) {
+  public constructor(slotCount: number = equipmentConfig.initialSlotCount) {
     if (!Number.isInteger(slotCount) || slotCount < 0) {
       throw new Error(
         `Equipment slot count must be a non-negative integer, received ${slotCount}`,
@@ -146,6 +146,16 @@ export class EquipmentState {
 
   public getStoredEquipment(): EquipmentId[] {
     return [...this.storedEquipment]
+  }
+
+  public getSettlementEquipmentSnapshot(): EquipmentId[] {
+    const equipped = this.slots.flatMap((slot) =>
+      slot.status === 'equipped' ? [slot.id] : [],
+    )
+    const pending = [...this.reservations.values()].map(
+      (reservation) => reservation.id,
+    )
+    return [...equipped, ...this.storedEquipment, ...pending]
   }
 
   public calculateWeaponDamage(baseDamage: number): number {

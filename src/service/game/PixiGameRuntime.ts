@@ -5,14 +5,10 @@ import { interfaceConfig } from '../../configs/interfaceConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import { roundConfig } from '../../configs/roundConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
-import type {
-  EquipmentCollectionTargets,
-  JackpotOutcome,
-  MimicId,
-  RandomSource,
-  RoundResult,
-} from '../../types/game'
+import type { EquipmentCollectionTargets, JackpotOutcome, MimicId, RandomSource } from '../../types/game'
 import { calculateJackpotReward } from '../progression/progression'
+import { calculateEquipmentSale } from '../settlement/equipmentSale'
+import { createRoundResult } from '../settlement/roundSettlement'
 import { selectWeightedMimicId } from '../spawn/spawn'
 import { loadRuntimeAssets, type LoadedAttachedCardTextures } from './assets/runtimeAssets'
 import { assignJackpotRuntimeAttachedCards, updateRuntimeAttachedCardHalos } from './attachedCards/runtimeAttachedCards'
@@ -57,6 +53,7 @@ export class PixiGameRuntime {
   private roundEnding = false
   private hudSnapshotElapsedMs = 0
   private nextRewardEventId = 1
+  private roundEquipmentSale = calculateEquipmentSale([])
 
   public constructor(
     host: HTMLElement,
@@ -155,6 +152,7 @@ export class PixiGameRuntime {
     this.defeatedMimics = 0
     this.jackpotOutcome = null
     this.roundEnding = false
+    this.roundEquipmentSale = calculateEquipmentSale([])
     this.hudSnapshotElapsedMs = interfaceConfig.hudSnapshotIntervalMs
     this.mimicSpawner.fillField(this.mimicPool, 'immediate')
     this.mode = 'active'
@@ -168,14 +166,12 @@ export class PixiGameRuntime {
     this.mode = 'idle'
     this.clearScene()
   }
-
   public setRewardCollectionTarget(target: { x: number; y: number } | null): void {
     this.effectSystems?.setRewardCollectionTarget(target, {
       x: this.app.screen.width,
       y: this.app.screen.height,
     })
   }
-
   public setEquipmentCollectionTargets(
     targets: EquipmentCollectionTargets,
   ): void {
@@ -422,6 +418,9 @@ export class PixiGameRuntime {
 
   private beginRoundEnding(): void {
     this.roundEnding = true
+    this.roundEquipmentSale = calculateEquipmentSale(
+      this.effectSystems?.equipment.getSettlementEquipmentSnapshot() ?? [],
+    )
     this.clearRefillSystem?.reset()
     this.effectSystems?.cancelUnresolvedEffectCards()
     this.effectSystems?.equipment.clear()
@@ -456,11 +455,12 @@ export class PixiGameRuntime {
 
   private finishRound(): void {
     if (this.mode !== 'active') return
-    const result: RoundResult = {
-      earnedGold: this.roundGold,
+    const result = createRoundResult({
+      combatGold: this.roundGold,
+      equipmentSale: this.roundEquipmentSale,
       defeatedMimics: this.defeatedMimics,
       jackpotOutcome: this.jackpotOutcome ?? 'notRevealed',
-    }
+    })
     this.clearScene()
     this.mode = 'decorative'
     this.nextRegularSpawnMs = 0

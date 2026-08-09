@@ -354,6 +354,37 @@ $red: #d84b42;
     margin: 0;
     font-weight: 850;
   }
+
+  .result-list__sale {
+    padding-left: 14px;
+    animation: settlement-row-reveal 120ms ease-out both;
+  }
+
+  .result-list__sale-total {
+    color: #8d4f23;
+  }
+
+  .result-list__grand-total {
+    align-items: baseline;
+    font-size: 19px;
+
+    dd {
+      color: #9a571d;
+    }
+  }
+}
+
+.result-panel__hint {
+  margin: -10px 0 12px;
+  color: #806958;
+  font-size: 12px;
+}
+
+@keyframes settlement-row-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
 }
 
 .unlock-panel,

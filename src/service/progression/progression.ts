@@ -32,13 +32,14 @@ export function completeRound(
     progress: {
       ...progress,
       completedRounds,
-      gold: progress.gold + Math.max(0, Math.floor(result.earnedGold)),
+      gold: progress.gold + Math.max(0, Math.floor(result.totalGold)),
       unlockedMimicIds: newUnlockMimicId
         ? [...progress.unlockedMimicIds, newUnlockMimicId]
         : [...progress.unlockedMimicIds],
       pendingUnlockMimicIds: newUnlockMimicId
         ? [...progress.pendingUnlockMimicIds, newUnlockMimicId]
         : [...progress.pendingUnlockMimicIds],
+      latestRoundResult: result,
     },
     newUnlockMimicId,
   }

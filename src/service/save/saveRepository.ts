@@ -3,7 +3,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { saveConfig } from '../../configs/saveConfig'
 import type { ProgressData } from '../../types/game'
 import { createInitialProgress } from '../progression/createInitialProgress'
-import { progressSchema } from './progressSchema'
+import { parseProgress, progressSchema } from './progressSchema'
 
 interface MimicClickerDatabase extends DBSchema {
   progress: {
@@ -61,7 +61,11 @@ export function createSaveRepository(
           saveConfig.progressKey,
         )
         if (stored) {
-          return progressSchema.parse(stored)
+          const parsed = parseProgress(stored)
+          if (stored.schemaVersion !== parsed.schemaVersion) {
+            await replace(parsed)
+          }
+          return parsed
         }
         const initial = createInitialProgress()
         await replace(initial)

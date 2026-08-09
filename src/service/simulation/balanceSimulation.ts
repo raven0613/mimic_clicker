@@ -1,13 +1,17 @@
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
 import { combatConfig } from '../../configs/combatConfig'
 import { effectCardConfig } from '../../configs/effectCardConfig'
-import { equipmentConfig } from '../../configs/equipmentConfig'
+import {
+  equipmentConfig,
+  equipmentDefinitions,
+} from '../../configs/equipmentConfig'
 import { jackpotConfig } from '../../configs/jackpotConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import { roundConfig } from '../../configs/roundConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
 import type { JackpotOutcome, MimicId } from '../../types/game'
 import { calculateJackpotReward } from '../progression/progression'
+import { calculateEquipmentSale } from '../settlement/equipmentSale'
 import { selectWeightedMimicId } from '../spawn/spawn'
 import type { EffectCardId } from '../game/attachedCards/attachedCardRules'
 import {
@@ -61,6 +65,7 @@ export interface SimulatedRound {
   placementRejections: number
   ordinaryIncome: number
   jackpotIncome: number
+  equipmentSaleIncome: number
   jackpotOpportunities: number
   jackpotRevealed: boolean
   jackpotDefeated: boolean
@@ -308,6 +313,9 @@ function simulateRound(
     accuracy,
     random: equipmentRandom,
   })
+  const soldEquipmentIds = equipmentDefinitions.flatMap(({ id }) =>
+    Array.from({ length: equipment.successfulDrops[id] }, () => id),
+  )
   const generatedEffectCardIds = [
     ...spawnMetrics.spawnedMimics.flatMap((mimic) => mimic.effectCardIds),
     ...shellEffectCardIds,
@@ -361,6 +369,7 @@ function simulateRound(
     placementRejections: spawnMetrics.placementRejections,
     ...combatMetrics,
     jackpotIncome: jackpotDefeated ? calculateJackpotReward(pool) : 0,
+    equipmentSaleIncome: calculateEquipmentSale(soldEquipmentIds).totalGold,
     jackpotOpportunities:
       jackpotCase === 'notRevealed' ? calculateJackpotOpportunities() : 1,
     jackpotRevealed,

@@ -4,6 +4,8 @@ import { coinRewardAnimationConfig } from '../../configs/coinRewardAnimationConf
 
 interface RollingGoldCounterProps {
   value: number
+  durationMs?: number
+  ariaLabel?: string
 }
 
 interface NumberTransition {
@@ -29,10 +31,12 @@ function RollingDigit({
   from,
   to,
   transitionId,
+  durationMs,
 }: {
   from: number
   to: number
   transitionId: number
+  durationMs: number
 }) {
   const forwardDistance = (to - from + 10) % 10
   const stepCount =
@@ -44,7 +48,7 @@ function RollingDigit({
   )
   const style: RollingDigitStyle = {
     '--rolling-digit-steps': stepCount,
-    '--rolling-digit-duration': `${coinRewardAnimationConfig.counter.digitRollDurationMs}ms`,
+    '--rolling-digit-duration': `${durationMs}ms`,
   }
 
   return (
@@ -64,7 +68,11 @@ function RollingDigit({
   )
 }
 
-export function RollingGoldCounter({ value }: RollingGoldCounterProps) {
+export function RollingGoldCounter({
+  value,
+  durationMs = coinRewardAnimationConfig.counter.digitRollDurationMs,
+  ariaLabel = `本局收益 ${normalizeValue(value)}`,
+}: RollingGoldCounterProps) {
   const targetValue = normalizeValue(value)
   const [displayedValue, setDisplayedValue] = useState(targetValue)
   const [transition, setTransition] = useState<NumberTransition | null>(null)
@@ -98,9 +106,9 @@ export function RollingGoldCounter({ value }: RollingGoldCounterProps) {
     const timeoutId = window.setTimeout(() => {
       setDisplayedValue(transition.to)
       setTransition(null)
-    }, coinRewardAnimationConfig.counter.digitRollDurationMs)
+    }, durationMs)
     return () => window.clearTimeout(timeoutId)
-  }, [transition])
+  }, [durationMs, transition])
 
   const fromValue = transition?.from ?? displayedValue
   const toValue = transition?.to ?? displayedValue
@@ -110,7 +118,7 @@ export function RollingGoldCounter({ value }: RollingGoldCounterProps) {
   )
 
   return (
-    <span className="rolling-number" aria-label={`本局收益 ${targetValue}`}>
+    <span className="rolling-number" aria-label={ariaLabel}>
       {Array.from({ length: digitCount }, (_, index) => {
         const columnFromRight = digitCount - index - 1
         const fromDigit = getDigit(fromValue, columnFromRight)
@@ -128,6 +136,7 @@ export function RollingGoldCounter({ value }: RollingGoldCounterProps) {
             from={fromDigit}
             to={toDigit}
             transitionId={transition.id}
+            durationMs={durationMs}
             key={columnFromRight}
           />
         )

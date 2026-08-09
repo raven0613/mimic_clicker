@@ -69,4 +69,9 @@ export const animationConfig = {
     failedDropOffsetYPixels: -36,
     endingScale: 0.82,
   },
+  settlementEquipmentSale: {
+    groupRevealIntervalMs: 100,
+    maximumGroupRevealDurationMs: 400,
+    totalGoldRollDurationMs: 300,
+  },
 } as const

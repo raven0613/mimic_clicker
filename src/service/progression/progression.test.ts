@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { mimicConfigs } from '../../configs/mimicConfigs'
+import { calculateEquipmentSale } from '../settlement/equipmentSale'
 import { createInitialProgress } from './createInitialProgress'
 import {
   acknowledgeUnlock,
@@ -21,12 +22,18 @@ describe('progression', () => {
   it('unlocks rare1 and rare2 after the first two completed rounds', () => {
     const initial = createInitialProgress()
     const afterFirst = completeRound(initial, {
-      earnedGold: mimicConfigs.normal.baseReward,
+      combatGold: mimicConfigs.normal.baseReward,
+      equipmentSaleGold: 0,
+      totalGold: mimicConfigs.normal.baseReward,
+      equipmentSales: [],
       defeatedMimics: 1,
       jackpotOutcome: 'escaped',
     })
     const afterSecond = completeRound(afterFirst.progress, {
-      earnedGold: mimicConfigs.rare1.baseReward,
+      combatGold: mimicConfigs.rare1.baseReward,
+      equipmentSaleGold: 0,
+      totalGold: mimicConfigs.rare1.baseReward,
+      equipmentSales: [],
       defeatedMimics: 1,
       jackpotOutcome: 'defeated',
     })
@@ -45,7 +52,10 @@ describe('progression', () => {
 
   it('removes only the acknowledged unlock announcement', () => {
     const first = completeRound(createInitialProgress(), {
-      earnedGold: 0,
+      combatGold: 0,
+      equipmentSaleGold: 0,
+      totalGold: 0,
+      equipmentSales: [],
       defeatedMimics: 0,
       jackpotOutcome: 'notRevealed',
     })
@@ -54,6 +64,25 @@ describe('progression', () => {
 
     expect(acknowledged.pendingUnlockMimicIds).toEqual([])
     expect(acknowledged.unlockedMimicIds).toContain('rare1')
+  })
+
+  it('adds the final round total once and keeps the saved result breakdown', () => {
+    const initial = createInitialProgress()
+    const combatGold = mimicConfigs.normal.baseReward
+    const equipmentSale = calculateEquipmentSale(['sword', 'ring'])
+    const result = {
+      combatGold,
+      equipmentSaleGold: equipmentSale.totalGold,
+      totalGold: combatGold + equipmentSale.totalGold,
+      equipmentSales: equipmentSale.groups,
+      defeatedMimics: 1,
+      jackpotOutcome: 'escaped' as const,
+    }
+
+    const completed = completeRound(initial, result)
+
+    expect(completed.progress.gold).toBe(initial.gold + result.totalGold)
+    expect(completed.progress.latestRoundResult).toEqual(result)
   })
 
   it('scales the Jackpot reward from the highest available base reward', () => {

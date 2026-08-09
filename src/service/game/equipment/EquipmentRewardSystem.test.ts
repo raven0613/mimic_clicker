@@ -92,6 +92,15 @@ describe('equipment reward collection timing', () => {
         equipmentConfig.sword.weaponDamageBonus,
     )
   })
+
+  it('keeps a successful airborne reward in the settlement snapshot', async () => {
+    const system = await createSystem()
+
+    expect(system.getSettlementEquipmentSnapshot()).toEqual(['sword'])
+
+    system.clear()
+    expect(system.getSettlementEquipmentSnapshot()).toEqual([])
+  })
 })
 
 async function createSystem(rewardEventId: number | null = 1) {

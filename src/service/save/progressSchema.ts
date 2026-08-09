@@ -1,16 +1,95 @@
 import { z } from 'zod'
 
-import { mimicIds } from '../../types/game'
+import { equipmentDefinitions } from '../../configs/equipmentConfig'
+import { mimicIds, type ProgressData } from '../../types/game'
 
 const mimicIdSchema = z.enum(mimicIds)
+const equipmentIdSchema = z.enum(
+  equipmentDefinitions.map(({ id }) => id) as [
+    (typeof equipmentDefinitions)[number]['id'],
+    ...(typeof equipmentDefinitions)[number]['id'][],
+  ],
+)
 
-export const progressSchema = z
+const equipmentSaleGroupSchema = z
+  .object({
+    equipmentId: equipmentIdSchema,
+    quantity: z.number().int().positive(),
+    unitPriceGold: z.number().int().nonnegative(),
+    subtotalGold: z.number().int().nonnegative(),
+  })
+  .strict()
+  .superRefine((group, context) => {
+    if (group.subtotalGold !== group.unitPriceGold * group.quantity) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Equipment sale subtotal must equal unit price times quantity',
+        path: ['subtotalGold'],
+      })
+    }
+  })
+
+const roundResultSchema = z
+  .object({
+    combatGold: z.number().int().nonnegative(),
+    equipmentSaleGold: z.number().int().nonnegative(),
+    totalGold: z.number().int().nonnegative(),
+    equipmentSales: z.array(equipmentSaleGroupSchema),
+    defeatedMimics: z.number().int().nonnegative(),
+    jackpotOutcome: z.enum([
+      'notRevealed',
+      'defeated',
+      'escaped',
+      'roundExpiredDuringChase',
+    ]),
+  })
+  .strict()
+  .superRefine((result, context) => {
+    const saleTotal = result.equipmentSales.reduce(
+      (total, group) => total + group.subtotalGold,
+      0,
+    )
+    if (new Set(result.equipmentSales.map(({ equipmentId }) => equipmentId)).size !== result.equipmentSales.length) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Equipment sale groups must have unique equipment ids',
+        path: ['equipmentSales'],
+      })
+    }
+    if (saleTotal !== result.equipmentSaleGold) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Equipment sale gold must equal the grouped subtotal sum',
+        path: ['equipmentSaleGold'],
+      })
+    }
+    if (result.totalGold !== result.combatGold + result.equipmentSaleGold) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Round total gold must equal combat gold plus equipment sale gold',
+        path: ['totalGold'],
+      })
+    }
+  })
+
+const version1ProgressSchema = z
   .object({
     schemaVersion: z.literal(1),
     completedRounds: z.number().int().nonnegative(),
     gold: z.number().int().nonnegative(),
     unlockedMimicIds: z.array(mimicIdSchema),
     pendingUnlockMimicIds: z.array(mimicIdSchema),
+  })
+  .strict()
+
+export const progressSchema = z
+  .object({
+    schemaVersion: z.literal(2),
+    completedRounds: z.number().int().nonnegative(),
+    gold: z.number().int().nonnegative(),
+    unlockedMimicIds: z.array(mimicIdSchema),
+    pendingUnlockMimicIds: z.array(mimicIdSchema),
+    latestRoundResult: roundResultSchema.nullable(),
   })
   .strict()
   .superRefine((progress, context) => {
@@ -67,3 +146,15 @@ export const progressSchema = z
       })
     }
   })
+
+export function parseProgress(input: unknown): ProgressData {
+  const version1 = version1ProgressSchema.safeParse(input)
+  if (version1.success) {
+    return progressSchema.parse({
+      ...version1.data,
+      schemaVersion: 2,
+      latestRoundResult: null,
+    })
+  }
+  return progressSchema.parse(input)
+}

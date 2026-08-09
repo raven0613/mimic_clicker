@@ -22,7 +22,10 @@ export interface BalanceSimulationReport {
   maximumSpawnShareDeviation: number
   targetProfileAverageDefeatedMimics: number
   targetProfileJackpotDefeatRate: number
+  stageAverageCombatIncome: Record<StageKey, number>
+  stageAverageEquipmentSaleIncome: Record<StageKey, number>
   stageAverageTotalIncome: Record<StageKey, number>
+  stageEquipmentSaleIncomeShare: Record<StageKey, number>
   stageAverageInitialFieldMimics: Record<StageKey, number>
   stageAverageGeneratedMimics: Record<StageKey, number>
   stageAverageDefeatedMimics: Record<StageKey, number>
@@ -163,11 +166,17 @@ function calculateStageAverages(
 ): Pick<
   BalanceSimulationReport,
   | 'stageAverageTotalIncome'
+  | 'stageAverageCombatIncome'
+  | 'stageAverageEquipmentSaleIncome'
+  | 'stageEquipmentSaleIncomeShare'
   | 'stageAverageInitialFieldMimics'
   | 'stageAverageGeneratedMimics'
   | 'stageAverageDefeatedMimics'
 > {
+  const stageAverageCombatIncome = {} as Record<StageKey, number>
+  const stageAverageEquipmentSaleIncome = {} as Record<StageKey, number>
   const stageAverageTotalIncome = {} as Record<StageKey, number>
+  const stageEquipmentSaleIncomeShare = {} as Record<StageKey, number>
   const stageAverageInitialFieldMimics = {} as Record<StageKey, number>
   const stageAverageGeneratedMimics = {} as Record<StageKey, number>
   const stageAverageDefeatedMimics = {} as Record<StageKey, number>
@@ -176,9 +185,16 @@ function calculateStageAverages(
       (round) =>
         round.stage === stage && round.equipmentLoadout === 'none',
     )
-    stageAverageTotalIncome[stage] = average(
+    stageAverageCombatIncome[stage] = average(
       stageRounds.map((round) => round.ordinaryIncome + round.jackpotIncome),
     )
+    stageAverageEquipmentSaleIncome[stage] = average(
+      stageRounds.map((round) => round.equipmentSaleIncome),
+    )
+    stageAverageTotalIncome[stage] =
+      stageAverageCombatIncome[stage] + stageAverageEquipmentSaleIncome[stage]
+    stageEquipmentSaleIncomeShare[stage] =
+      stageAverageEquipmentSaleIncome[stage] / stageAverageTotalIncome[stage]
     stageAverageInitialFieldMimics[stage] = average(
       stageRounds.map((round) => round.initialFieldMimicCount),
     )
@@ -190,7 +206,10 @@ function calculateStageAverages(
     )
   }
   return {
+    stageAverageCombatIncome,
+    stageAverageEquipmentSaleIncome,
     stageAverageTotalIncome,
+    stageEquipmentSaleIncomeShare,
     stageAverageInitialFieldMimics,
     stageAverageGeneratedMimics,
     stageAverageDefeatedMimics,
@@ -392,7 +411,10 @@ function createSummary(report: BalanceSimulationReport): string {
     `equipment drops sword ${equipment.averageSuccessfulDropsPerRound.sword.toFixed(2)} / ring ${equipment.averageSuccessfulDropsPerRound.ring.toFixed(2)} per round`,
     `equipment slot activation ${equipment.averageActivationTimeMs.toFixed(0)}ms`,
     `loadout damage sword×2 ${equipment.averageAdditionalDamageByLoadout.duplicateSword.sword.toFixed(1)} / ring×2 ${equipment.averageAdditionalDamageByLoadout.duplicateRing.ring.toFixed(1)}`,
-    `income ${Object.values(report.stageAverageTotalIncome).map((value) => value.toFixed(1)).join(' → ')}`,
+    `combat income ${Object.values(report.stageAverageCombatIncome).map((value) => value.toFixed(1)).join(' → ')}`,
+    `equipment sale ${Object.values(report.stageAverageEquipmentSaleIncome).map((value) => value.toFixed(1)).join(' → ')}`,
+    `sale share ${Object.values(report.stageEquipmentSaleIncomeShare).map((value) => `${(value * 100).toFixed(1)}%`).join(' → ')}`,
+    `total income ${Object.values(report.stageAverageTotalIncome).map((value) => value.toFixed(1)).join(' → ')}`,
   ].join(' | ')
 }
 

@@ -4,6 +4,7 @@ export type EquipmentId = 'sword' | 'ring'
 
 export interface EquipmentDefinition {
   id: EquipmentId
+  displayName: string
   rarity: AttachedCardRarity
   carrierSpawnChance: number
 }
@@ -39,11 +40,13 @@ export const equipmentConfig = {
 export const equipmentDefinitions = [
   {
     id: 'sword',
+    displayName: 'Sword',
     rarity: 'N',
     carrierSpawnChance: equipmentConfig.sword.carrierSpawnChance,
   },
   {
     id: 'ring',
+    displayName: 'Ring',
     rarity: 'SR',
     carrierSpawnChance: equipmentConfig.ring.carrierSpawnChance,
   },

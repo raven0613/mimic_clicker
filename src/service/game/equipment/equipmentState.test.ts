@@ -41,6 +41,21 @@ describe('equipment state', () => {
     )
   })
 
+  it('snapshots pending, equipped, and stored successful drops exactly once', () => {
+    const state = new EquipmentState(1)
+    const [ring] = state.reserveDrops([{ id: 'ring', rarity: 'SR' }])
+    state.completeReservation(ring.reservationId)
+    const [storedSword] = state.reserveDrops([{ id: 'sword', rarity: 'N' }])
+    state.completeReservation(storedSword.reservationId)
+    state.reserveDrops([{ id: 'sword', rarity: 'N' }])
+
+    expect(state.getSettlementEquipmentSnapshot()).toEqual([
+      'ring',
+      'sword',
+      'sword',
+    ])
+  })
+
   it('stacks duplicate Swords additively', () => {
     const state = new EquipmentState()
     const reservations = state.reserveDrops([

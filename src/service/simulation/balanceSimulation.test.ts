@@ -70,12 +70,26 @@ describe('fixed-seed balance simulation', () => {
     expect(report.targetProfileJackpotDefeatRate).toBeLessThanOrEqual(
       balanceSimulationConfig.targets.targetProfileJackpotDefeatRate.maximum,
     )
-    expect(report.stageAverageTotalIncome.normalRare1).toBeGreaterThan(
-      report.stageAverageTotalIncome.normalOnly,
+    expect(report.stageAverageCombatIncome.normalRare1).toBeGreaterThan(
+      report.stageAverageCombatIncome.normalOnly,
     )
-    expect(report.stageAverageTotalIncome.allMimics).toBeGreaterThan(
-      report.stageAverageTotalIncome.normalRare1,
+    expect(report.stageAverageCombatIncome.allMimics).toBeGreaterThan(
+      report.stageAverageCombatIncome.normalRare1,
     )
+    for (const stage of Object.keys(
+      report.stageAverageTotalIncome,
+    ) as Array<keyof typeof report.stageAverageTotalIncome>) {
+      expect(report.stageAverageTotalIncome[stage]).toBeCloseTo(
+        report.stageAverageCombatIncome[stage] +
+          report.stageAverageEquipmentSaleIncome[stage],
+      )
+      expect(report.stageEquipmentSaleIncomeShare[stage]).toBeGreaterThanOrEqual(
+        balanceSimulationConfig.targets.equipmentSaleIncomeShare.minimum,
+      )
+      expect(report.stageEquipmentSaleIncomeShare[stage]).toBeLessThanOrEqual(
+        balanceSimulationConfig.targets.equipmentSaleIncomeShare.maximum,
+      )
+    }
     const carrierRates = Object.values(
       report.effectCardMetrics.carrierRate,
     )
