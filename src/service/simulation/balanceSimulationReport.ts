@@ -1,9 +1,15 @@
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
 import { combatConfig } from '../../configs/combatConfig'
+import type { EquipmentId } from '../../configs/equipmentConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import type { MimicId } from '../../types/game'
-import type { EffectCardId } from '../game/effectCards/effectCardRules'
-import type { SimulatedRound, StageKey } from './balanceSimulation'
+import type { EffectCardId } from '../game/attachedCards/attachedCardRules'
+import type {
+  EquipmentLoadoutKey,
+  SimulatedRound,
+  StageKey,
+} from './balanceSimulation'
+import type { EquipmentCounts } from './equipmentBalanceSimulation'
 
 export interface BalanceSimulationReport {
   configVersion: string
@@ -36,6 +42,22 @@ export interface BalanceSimulationReport {
     meteoriteImpacts: number
     maximumChainDepth: number
   }
+  equipmentMetrics: {
+    averageVisibleGeneratedPerRound: EquipmentCounts
+    averageHiddenGeneratedPerRound: EquipmentCounts
+    averageSuccessfulDropsPerRound: EquipmentCounts
+    averageEquippedPerRound: EquipmentCounts
+    averageBackpackPerRound: EquipmentCounts
+    averageActivationTimeMs: number
+    averageAdditionalDamageByLoadout: Record<
+      EquipmentLoadoutKey,
+      { sword: number; ring: number }
+    >
+    averageRingStrikesByLoadout: Record<EquipmentLoadoutKey, number>
+    averageDefeatedMimicsByLoadout: Record<EquipmentLoadoutKey, number>
+    averageOrdinaryIncomeByLoadout: Record<EquipmentLoadoutKey, number>
+    jackpotDefeatRateByLoadout: Record<EquipmentLoadoutKey, number>
+  }
   unfinishedRoundCount: number
   summary: string
 }
@@ -47,7 +69,9 @@ export function createBalanceSimulationReport(
   const stageAverages = calculateStageAverages(rounds, stagePools)
   const targetRounds = rounds.filter(
     (round) =>
-      round.playerModel === 'target' && round.accuracyModel === 'target',
+      round.playerModel === 'target' &&
+      round.accuracyModel === 'target' &&
+      round.equipmentLoadout === 'none',
   )
   const targetDefeatRounds = targetRounds.filter(
     (round) => round.jackpotCase === 'defeated',
@@ -115,6 +139,7 @@ export function createBalanceSimulationReport(
         ...rounds.map((round) => round.maximumEffectChainDepth),
       ),
     },
+    equipmentMetrics: createEquipmentMetrics(rounds),
     unfinishedRoundCount: rounds.filter((round) => !round.finished).length,
     summary: '',
   }
@@ -135,7 +160,10 @@ function calculateStageAverages(
   const stageAverageGeneratedMimics = {} as Record<StageKey, number>
   const stageAverageDefeatedMimics = {} as Record<StageKey, number>
   for (const stage of Object.keys(stagePools) as StageKey[]) {
-    const stageRounds = rounds.filter((round) => round.stage === stage)
+    const stageRounds = rounds.filter(
+      (round) =>
+        round.stage === stage && round.equipmentLoadout === 'none',
+    )
     stageAverageTotalIncome[stage] = average(
       stageRounds.map((round) => round.ordinaryIncome + round.jackpotIncome),
     )
@@ -151,6 +179,100 @@ function calculateStageAverages(
     stageAverageGeneratedMimics,
     stageAverageDefeatedMimics,
   }
+}
+
+function createEquipmentMetrics(
+  rounds: readonly SimulatedRound[],
+): BalanceSimulationReport['equipmentMetrics'] {
+  const activationCount = sum(
+    rounds.map((round) => round.equipment.activationCount),
+  )
+  const averageAdditionalDamageByLoadout = {} as Record<
+    EquipmentLoadoutKey,
+    { sword: number; ring: number }
+  >
+  const averageRingStrikesByLoadout = {} as Record<
+    EquipmentLoadoutKey,
+    number
+  >
+  const averageDefeatedMimicsByLoadout = {} as Record<
+    EquipmentLoadoutKey,
+    number
+  >
+  const averageOrdinaryIncomeByLoadout = {} as Record<
+    EquipmentLoadoutKey,
+    number
+  >
+  const jackpotDefeatRateByLoadout = {} as Record<
+    EquipmentLoadoutKey,
+    number
+  >
+  for (const loadout of Object.keys(
+    balanceSimulationConfig.equipmentLoadouts,
+  ) as EquipmentLoadoutKey[]) {
+    const loadoutRounds = rounds.filter(
+      (round) => round.equipmentLoadout === loadout,
+    )
+    averageAdditionalDamageByLoadout[loadout] = {
+      sword: average(loadoutRounds.map((round) => round.swordAdditionalDamage)),
+      ring: average(loadoutRounds.map((round) => round.ringAdditionalDamage)),
+    }
+    averageRingStrikesByLoadout[loadout] = average(
+      loadoutRounds.map((round) => round.ringStrikes),
+    )
+    averageDefeatedMimicsByLoadout[loadout] = average(
+      loadoutRounds.map((round) => round.equipment.defeatedMimics),
+    )
+    averageOrdinaryIncomeByLoadout[loadout] = average(
+      loadoutRounds.map((round) => round.equipment.ordinaryIncome),
+    )
+    jackpotDefeatRateByLoadout[loadout] = average(
+      loadoutRounds.map((round) => Number(round.equipment.jackpotDefeated)),
+    )
+  }
+  return {
+    averageVisibleGeneratedPerRound: averageEquipmentCounts(
+      rounds,
+      (round) => round.equipment.visibleGenerated,
+    ),
+    averageHiddenGeneratedPerRound: averageEquipmentCounts(
+      rounds,
+      (round) => round.equipment.hiddenGenerated,
+    ),
+    averageSuccessfulDropsPerRound: averageEquipmentCounts(
+      rounds,
+      (round) => round.equipment.successfulDrops,
+    ),
+    averageEquippedPerRound: averageEquipmentCounts(
+      rounds,
+      (round) => round.equipment.equipped,
+    ),
+    averageBackpackPerRound: averageEquipmentCounts(
+      rounds,
+      (round) => round.equipment.backpack,
+    ),
+    averageActivationTimeMs:
+      sum(rounds.map((round) => round.equipment.activationTimeTotalMs)) /
+      Math.max(1, activationCount),
+    averageAdditionalDamageByLoadout,
+    averageRingStrikesByLoadout,
+    averageDefeatedMimicsByLoadout,
+    averageOrdinaryIncomeByLoadout,
+    jackpotDefeatRateByLoadout,
+  }
+}
+
+function averageEquipmentCounts(
+  rounds: readonly SimulatedRound[],
+  select: (round: SimulatedRound) => EquipmentCounts,
+): EquipmentCounts {
+  return (['sword', 'ring'] as const).reduce(
+    (counts, id) => {
+      counts[id] = average(rounds.map((round) => select(round)[id]))
+      return counts
+    },
+    { sword: 0, ring: 0 } as Record<EquipmentId, number>,
+  )
 }
 
 function calculateMaximumSpawnShareDeviation(
@@ -233,15 +355,19 @@ function divideByRoundCount(
 
 function createSummary(report: BalanceSimulationReport): string {
   const metrics = report.effectCardMetrics
+  const equipment = report.equipmentMetrics
   return [
     `Balance ${report.configVersion}: ${report.caseCount} deterministic cases`,
     `placement rejection max ${(report.maximumPlacementRejectionRatio * 100).toFixed(1)}%`,
     `spawn share deviation max ${(report.maximumSpawnShareDeviation * 100).toFixed(1)}%`,
-    `target defeats ${report.targetProfileAverageDefeatedMimics.toFixed(1)} mimics/round`,
-    `target Jackpot defeat ${(report.targetProfileJackpotDefeatRate * 100).toFixed(1)}%`,
+    `baseline target defeats ${report.targetProfileAverageDefeatedMimics.toFixed(1)} mimics/round`,
+    `baseline target Jackpot defeat ${(report.targetProfileJackpotDefeatRate * 100).toFixed(1)}%`,
     `Thunder ${(metrics.carrierRate.thunder * 100).toFixed(1)}% carriers / ${metrics.averageCardsGeneratedPerRound.thunder.toFixed(2)} attached / ${metrics.averageCardsTriggeredPerRound.thunder.toFixed(2)} triggered / ${metrics.averageHitsPerTrigger.thunder.toFixed(2)} hits / ${metrics.averageDamagePerTrigger.thunder.toFixed(1)} damage / ${metrics.defeats.thunder} defeats`,
     `Meteorite ${(metrics.carrierRate.meteorite * 100).toFixed(1)}% carriers / ${metrics.averageCardsGeneratedPerRound.meteorite.toFixed(2)} attached / ${metrics.averageCardsTriggeredPerRound.meteorite.toFixed(2)} triggered / ${metrics.averageHitsPerTrigger.meteorite.toFixed(2)} hits / ${metrics.averageDamagePerTrigger.meteorite.toFixed(1)} damage / ${metrics.defeats.meteorite} defeats / ${metrics.meteoritesLaunched} launched / ${metrics.meteoriteImpacts} impacts`,
     `effect chain ${metrics.maximumChainDepth}`,
+    `equipment drops sword ${equipment.averageSuccessfulDropsPerRound.sword.toFixed(2)} / ring ${equipment.averageSuccessfulDropsPerRound.ring.toFixed(2)} per round`,
+    `equipment slot activation ${equipment.averageActivationTimeMs.toFixed(0)}ms`,
+    `loadout damage sword×2 ${equipment.averageAdditionalDamageByLoadout.duplicateSword.sword.toFixed(1)} / ring×2 ${equipment.averageAdditionalDamageByLoadout.duplicateRing.ring.toFixed(1)}`,
     `income ${Object.values(report.stageAverageTotalIncome).map((value) => value.toFixed(1)).join(' → ')}`,
   ].join(' | ')
 }

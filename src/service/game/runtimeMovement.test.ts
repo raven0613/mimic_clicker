@@ -15,6 +15,7 @@ function createEscapingJackpotEntity(): RuntimeMimicEntity {
   const flashSprite = { alpha: 0 } as Sprite
 
   return {
+    runtimeId: 1,
     mimicId: 'normal',
     role: 'jackpot',
     container,
@@ -36,7 +37,8 @@ function createEscapingJackpotEntity(): RuntimeMimicEntity {
     },
     jackpotVelocity: { x: 0, y: 0 },
     attachedCardFan: null,
-    effectCards: [],
+    attachedCards: [],
+    hiddenEquipmentId: null,
   }
 }
 

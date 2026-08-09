@@ -21,6 +21,10 @@ function createTestMotion(): CoinRewardMotion {
     remainingBounces: coinRewardAnimationConfig.landing.minimumBounceCount,
     bounceVelocityRetention:
       coinRewardAnimationConfig.landing.minimumVelocityRetention,
+    horizontalVelocityRetention:
+      coinRewardAnimationConfig.landing.horizontalVelocityRetention,
+    gravityPixelsPerSecondSquared:
+      coinRewardAnimationConfig.burst.gravityPixelsPerSecondSquared,
     phaseElapsedMs: 0,
     flipElapsedMs: 0,
     restDurationMs: coinRewardAnimationConfig.landing.minimumRestDurationMs,

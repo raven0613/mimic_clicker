@@ -17,7 +17,11 @@ export class CoinRewardSystem {
   private readonly host: HTMLElement
   private readonly textures: LoadedCoinRewardTextures
   private readonly random: RandomSource
-  private readonly onRewardPresented: (reward: number) => void
+  private readonly onRewardPresented: (
+    reward: number,
+    rewardEventId: number,
+  ) => void
+  private readonly onCollectionCompleted: (rewardEventId: number) => void
   private collectionTarget: Vector2 | null = null
   private activeCoinCount = 0
 
@@ -26,12 +30,14 @@ export class CoinRewardSystem {
     host: HTMLElement,
     textures: LoadedCoinRewardTextures,
     random: RandomSource,
-    onRewardPresented: (reward: number) => void,
+    onRewardPresented: (reward: number, rewardEventId: number) => void,
+    onCollectionCompleted: (rewardEventId: number) => void,
   ) {
     this.host = host
     this.textures = textures
     this.random = random
     this.onRewardPresented = onRewardPresented
+    this.onCollectionCompleted = onCollectionCompleted
     this.spritePool = new CoinRewardSpritePool(layer, textures)
   }
 
@@ -61,11 +67,13 @@ export class CoinRewardSystem {
     y: number,
     reward: number,
     fieldHeight: number,
+    rewardEventId: number,
   ): void {
     const batch = createCoinRewardBatch({
       x,
       y,
       reward,
+      rewardEventId,
       fieldHeight,
       availableCoinSlots:
         coinRewardAnimationConfig.burst.maximumConcurrentVisualCoins -
@@ -75,7 +83,8 @@ export class CoinRewardSystem {
       spritePool: this.spritePool,
     })
     if (batch.coins.length === 0) {
-      this.onRewardPresented(reward)
+      this.onRewardPresented(reward, rewardEventId)
+      this.onCollectionCompleted(rewardEventId)
       return
     }
 
@@ -95,8 +104,13 @@ export class CoinRewardSystem {
         this.spritePool,
       )
       this.activeCoinCount -= previousCoinCount - batch.coins.length
-      if (shouldPresentReward) this.onRewardPresented(batch.reward)
-      if (batch.coins.length === 0) this.batches.splice(index, 1)
+      if (shouldPresentReward) {
+        this.onRewardPresented(batch.reward, batch.rewardEventId)
+      }
+      if (batch.coins.length === 0) {
+        this.onCollectionCompleted(batch.rewardEventId)
+        this.batches.splice(index, 1)
+      }
     }
   }
 

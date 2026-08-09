@@ -1,4 +1,4 @@
-import { Container } from 'pixi.js'
+import { Color, Container } from 'pixi.js'
 
 import { animationConfig } from '../../../configs/animationConfig'
 import type { Vector2 } from '../../../types/game'
@@ -17,7 +17,7 @@ export class HitEffectSystem {
     stage.addChild(this.layer)
   }
 
-  public add(position: Vector2): void {
+  public add(position: Vector2, tintColor?: string): void {
     const config = animationConfig.manualHitEffect
     const displaySize = calculateSpriteDisplaySize(
       config.spriteSheet.frameWidthPixels,
@@ -31,6 +31,10 @@ export class HitEffectSystem {
       width: displaySize.width,
       height: displaySize.height,
       anchor: { x: 0.5, y: 0.5 },
+      tint:
+        tintColor === undefined
+          ? undefined
+          : Color.shared.setValue(tintColor).toNumber(),
     })
   }
 

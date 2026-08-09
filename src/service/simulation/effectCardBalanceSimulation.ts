@@ -1,14 +1,15 @@
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
 import { combatConfig } from '../../configs/combatConfig'
 import { effectCardConfig } from '../../configs/effectCardConfig'
+import type { EquipmentId } from '../../configs/equipmentConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import { roundConfig } from '../../configs/roundConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
 import type { MimicId, RandomSource, Vector2 } from '../../types/game'
+import type { EffectCardId } from '../game/attachedCards/attachedCardRules'
 import {
   calculateInitialMeteoriteDamage,
   calculateInitialThunderDamage,
-  type EffectCardId,
 } from '../game/effectCards/effectCardRules'
 import {
   collectMeteoriteHitTargets,
@@ -29,6 +30,8 @@ export interface BalanceCombatMimic extends ThunderTarget {
   spawnedAtMs: number
   initialY: number
   effectCardIds: EffectCardId[]
+  visibleEquipmentIds: EquipmentId[]
+  hiddenEquipmentId: EquipmentId | null
 }
 
 export interface SimulatedEffectCardEvent {
@@ -265,7 +268,10 @@ export function simulateEffectCardCombat(
     )
     if (!interval.isAllowed) continue
     target.nextWeaponDamageAllowedAtMs = interval.nextAllowedAtMs
-    target.health = Math.max(0, target.health - combatConfig.initialWeaponDamage)
+    target.health = Math.max(
+      0,
+      target.health - combatConfig.initialWeaponDamage,
+    )
     if (target.health === 0) defeatMimic(target, clickAtMs, 0, null)
   }
   processEffectsThrough(roundConfig.durationMs, false)
@@ -285,5 +291,6 @@ export function simulateEffectCardCombat(
 }
 
 function eventTime(event: PendingEffectEvent): number {
-  return event.kind === 'card' ? event.readyAtMs : event.impactAtMs
+  if (event.kind === 'card') return event.readyAtMs
+  return event.impactAtMs
 }

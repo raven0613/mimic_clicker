@@ -5,13 +5,15 @@ import { mimicConfigs } from '../../configs/mimicConfigs'
 import { roundConfig } from '../../configs/roundConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
 import type { MimicId, Vector2 } from '../../types/game'
-import type { LoadedEffectCardTextures } from './assets/runtimeAssets'
+import type { LoadedAttachedCardTextures } from './assets/runtimeAssets'
 import { createMimicCrackVisual } from './damage/mimicCrackVisual'
-import type { EffectCardAssignment } from './effectCards/effectCardRules'
-import { createEffectCardFan } from './effectCards/effectCardVisual'
+import type { EquipmentId } from '../../configs/equipmentConfig'
+import type { AttachedCardAssignment } from './attachedCards/attachedCardRules'
+import { createAttachedCardFanVisual } from './attachedCards/attachedCardVisual'
 import type { LoadedMimicTextures, RuntimeMimicEntity } from './runtimeTypes'
 
 interface CreateRuntimeMimicInput {
+  runtimeId: number
   mimicId: MimicId
   role: RuntimeMimicEntity['role']
   decorative: boolean
@@ -19,8 +21,9 @@ interface CreateRuntimeMimicInput {
   centerY: number
   fieldHeight: number
   textures: LoadedMimicTextures
-  effectCardTextures: LoadedEffectCardTextures
-  effectCardAssignments: readonly EffectCardAssignment[]
+  attachedCardTextures: LoadedAttachedCardTextures
+  attachedCardAssignments: readonly AttachedCardAssignment[]
+  hiddenEquipmentId: EquipmentId | null
   onAttack: (entity: RuntimeMimicEntity, position: Vector2) => void
 }
 
@@ -57,6 +60,7 @@ export function createRuntimeMimicEntity(
     ? null
     : mimicConfigs[input.mimicId].maximumHealth
   const entity: RuntimeMimicEntity = {
+    runtimeId: input.runtimeId,
     mimicId: input.mimicId,
     role: input.role,
     container,
@@ -75,12 +79,13 @@ export function createRuntimeMimicEntity(
     jackpotLifecycle: null,
     jackpotVelocity: { x: 0, y: 0 },
     attachedCardFan: null,
-    effectCards: [],
+    attachedCards: [],
+    hiddenEquipmentId: input.hiddenEquipmentId,
   }
-  setRuntimeEffectCards(
+  setRuntimeAttachedCards(
     entity,
-    input.effectCardAssignments,
-    input.effectCardTextures,
+    input.attachedCardAssignments,
+    input.attachedCardTextures,
   )
   container.hitArea = {
     contains: (x, y) =>
@@ -101,17 +106,17 @@ export function createRuntimeMimicEntity(
   return entity
 }
 
-export function setRuntimeEffectCards(
+export function setRuntimeAttachedCards(
   entity: RuntimeMimicEntity,
-  assignments: readonly EffectCardAssignment[],
-  textures: LoadedEffectCardTextures,
+  assignments: readonly AttachedCardAssignment[],
+  textures: LoadedAttachedCardTextures,
 ): void {
   if (entity.attachedCardFan) {
     entity.attachedCardFan.container.removeFromParent()
     entity.attachedCardFan.container.destroy({ children: true })
   }
-  const fan = createEffectCardFan(assignments, textures)
+  const fan = createAttachedCardFanVisual(assignments, textures)
   entity.attachedCardFan = fan
-  entity.effectCards = fan ? [...fan.cards] : []
+  entity.attachedCards = fan ? [...fan.cards] : []
   if (fan) entity.container.addChild(fan.container)
 }

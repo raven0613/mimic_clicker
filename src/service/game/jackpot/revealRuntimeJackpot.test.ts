@@ -11,6 +11,7 @@ import { revealRuntimeJackpot } from './revealRuntimeJackpot'
 
 function createDisguisedJackpot(): RuntimeMimicEntity {
   return {
+    runtimeId: 1,
     mimicId: 'normal',
     role: 'jackpotDisguise',
     container: { zIndex: 0 } as Container,
@@ -28,7 +29,8 @@ function createDisguisedJackpot(): RuntimeMimicEntity {
     jackpotLifecycle: null,
     jackpotVelocity: { x: 0, y: 0 },
     attachedCardFan: null,
-    effectCards: [],
+    attachedCards: [],
+    hiddenEquipmentId: null,
   }
 }
 

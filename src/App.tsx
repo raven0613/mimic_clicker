@@ -14,7 +14,12 @@ import { decodeProgress, encodeProgress } from './service/save/saveCodec'
 import { createSaveRepository } from './service/save/saveRepository'
 import { gameFlowMachine } from './state/gameFlowMachine'
 import { useGameStore } from './store/gameStore'
-import type { ProgressData, RoundResult, Vector2 } from './types/game'
+import type {
+  EquipmentCollectionTargets,
+  ProgressData,
+  RoundResult,
+  Vector2,
+} from './types/game'
 
 const saveRepository = createSaveRepository()
 type FailedOperation = 'boot' | 'settlement' | 'unlock'
@@ -110,6 +115,11 @@ function App() {
     (target: Vector2 | null) => runtime?.setRewardCollectionTarget(target),
     [runtime],
   )
+  const handleEquipmentTargetsChange = useCallback(
+    (targets: EquipmentCollectionTargets) =>
+      runtime?.setEquipmentCollectionTargets(targets),
+    [runtime],
+  )
 
   async function acknowledgeCurrentUnlock() {
     const mimicId = progress.pendingUnlockMimicIds[0]
@@ -197,7 +207,11 @@ function App() {
       />
 
       {flow.matches('playing') && (
-        <GameHud hud={hud} onGoldTargetChange={handleGoldTargetChange} />
+        <GameHud
+          hud={hud}
+          onGoldTargetChange={handleGoldTargetChange}
+          onEquipmentTargetsChange={handleEquipmentTargetsChange}
+        />
       )}
       {flow.matches('loadingSave') && (
         <StatusOverlay title="載入中" message="正在準備存檔與遊戲資源…" />

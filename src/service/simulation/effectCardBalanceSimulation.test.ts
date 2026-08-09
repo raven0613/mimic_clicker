@@ -6,13 +6,13 @@ import { effectCardConfig } from '../../configs/effectCardConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import { roundConfig } from '../../configs/roundConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
+import type { EffectCardId } from '../game/attachedCards/attachedCardRules'
 import {
   calculateMeteoriteDamageAreaSide,
   createMeteoriteTrajectory,
 } from '../game/effectCards/meteoriteRules'
 import {
   calculateInitialThunderDamage,
-  type EffectCardId,
 } from '../game/effectCards/effectCardRules'
 import {
   simulateEffectCardCombat,
@@ -37,11 +37,14 @@ function createMimic(
     spawnedAtMs,
     initialY: 100,
     effectCardIds,
+    visibleEquipmentIds: [],
+    hiddenEquipmentId: null,
   }
 }
 
 describe('effect-card combat simulation', () => {
-  const clickRate = 10
+  const clickRate =
+    1_000 / combatConfig.minimumWeaponDamageIntervalPerTargetMs
   const ownerHitCount = Math.ceil(
     mimicConfigs.normal.maximumHealth / combatConfig.initialWeaponDamage,
   )

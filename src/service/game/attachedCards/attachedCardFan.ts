@@ -1,4 +1,4 @@
-import { Container, type Graphics } from 'pixi.js'
+import { Container } from 'pixi.js'
 
 import {
   createAttachedCardFanLayout,
@@ -7,7 +7,7 @@ import {
 
 export interface AttachedCardVisual {
   container: Container
-  halo: Graphics
+  halo: Container
 }
 
 export interface AttachedCardFan<TCard extends AttachedCardVisual> {

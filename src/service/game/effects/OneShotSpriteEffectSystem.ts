@@ -17,6 +17,7 @@ interface AddOneShotEffectInput {
   height: number
   anchor: Vector2
   rotationRadians?: number
+  tint?: number
 }
 
 export class OneShotSpriteEffectSystem {
@@ -39,6 +40,7 @@ export class OneShotSpriteEffectSystem {
     sprite.setSize(input.width, input.height)
     sprite.position.set(Math.round(input.position.x), Math.round(input.position.y))
     sprite.rotation = input.rotationRadians ?? 0
+    if (input.tint !== undefined) sprite.tint = input.tint
     sprite.gotoAndStop(0)
     this.activeEffects.push({ sprite, elapsedMs: 0, durationMs: input.durationMs })
     this.parent.addChild(sprite)

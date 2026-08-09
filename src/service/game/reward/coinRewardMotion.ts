@@ -1,5 +1,9 @@
 import { coinRewardAnimationConfig } from '../../../configs/coinRewardAnimationConfig'
 import type { Vector2 } from '../../../types/game'
+import {
+  advanceRewardBurstMotion,
+  type RewardBurstMotion,
+} from './rewardBurstMotion'
 
 export type CoinRewardPhase =
   | 'airborne'
@@ -7,16 +11,8 @@ export type CoinRewardPhase =
   | 'collecting'
   | 'completed'
 
-export interface CoinRewardMotion {
+export interface CoinRewardMotion extends RewardBurstMotion {
   phase: CoinRewardPhase
-  x: number
-  y: number
-  velocityX: number
-  velocityY: number
-  groundY: number
-  remainingBounces: number
-  bounceVelocityRetention: number
-  phaseElapsedMs: number
   flipElapsedMs: number
   restDurationMs: number
   collectionStartX: number
@@ -48,34 +44,9 @@ export function calculateCoinFlipFrameIndex(
   return elapsedFrames % coinRewardAnimationConfig.spriteSheet.frameCount
 }
 
-function updateAirborneMotion(
-  motion: CoinRewardMotion,
-  deltaMs: number,
-): void {
-  const deltaSeconds = deltaMs / 1_000
+function updateAirborneMotion(motion: CoinRewardMotion, deltaMs: number): void {
   motion.flipElapsedMs += deltaMs
-  motion.velocityY +=
-    coinRewardAnimationConfig.burst.gravityPixelsPerSecondSquared * deltaSeconds
-  motion.x += motion.velocityX * deltaSeconds
-  motion.y += motion.velocityY * deltaSeconds
-
-  if (motion.y < motion.groundY || motion.velocityY <= 0) return
-
-  motion.y = motion.groundY
-  motion.remainingBounces -= 1
-  if (motion.remainingBounces <= 0) {
-    motion.remainingBounces = 0
-    motion.velocityX = 0
-    motion.velocityY = 0
-    motion.phase = 'resting'
-    motion.phaseElapsedMs = 0
-    return
-  }
-
-  motion.velocityX *=
-    coinRewardAnimationConfig.landing.horizontalVelocityRetention
-  motion.velocityY =
-    -motion.velocityY * motion.bounceVelocityRetention
+  advanceRewardBurstMotion(motion, deltaMs)
 }
 
 function updateRestingMotion(

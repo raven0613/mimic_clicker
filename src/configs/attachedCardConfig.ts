@@ -1,7 +1,8 @@
 import type { MimicId } from '../types/game'
 
 export type AttachedCardFrameId = 'normal'
-export type AttachedCardRarity = 'normal' | 'ssr'
+export type EffectCardRarity = 'normal' | 'ssr'
+export type AttachedCardRarity = EffectCardRarity | 'sr'
 
 export const attachedCardConfig = {
   card: {
@@ -56,5 +57,19 @@ export const attachedCardConfig = {
       pulseAmplitude: 0.12,
       pulsePeriodMs: 820,
     },
-  } satisfies Record<AttachedCardRarity, object>,
+  } satisfies Record<EffectCardRarity, object>,
+  ringHalo: {
+    cornerRadiusPixels: 5,
+    outlineStrokeWidthPixels: 5,
+    outlineColor: '#ffe486',
+    glowColor: '#ffc84a',
+    glowStrokeWidthPixels: 8,
+    glowOpacity: 0.72,
+    blurStrengthPixels: 5,
+    blurQuality: 3,
+    blurPaddingPixels: 14,
+    baseOpacityMultiplier: 0.9,
+    pulseAmplitude: 0.1,
+    pulsePeriodMs: 760,
+  },
 } as const

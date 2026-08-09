@@ -27,6 +27,17 @@ describe('weapon damage interval', () => {
     })
   })
 
+  it('treats floating-point reconstruction of the boundary as equal', () => {
+    const halfInterval = intervalMs / 2
+    const reconstructedBoundary = halfInterval * 3
+    const nextAllowedAtMs = halfInterval + intervalMs
+
+    expect(
+      evaluateWeaponDamageInterval(nextAllowedAtMs, reconstructedBoundary)
+        .isAllowed,
+    ).toBe(true)
+  })
+
   it('tracks targets independently', () => {
     const firstTarget = evaluateWeaponDamageInterval(0, 0)
     const secondTarget = evaluateWeaponDamageInterval(0, 0)

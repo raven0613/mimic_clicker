@@ -16,6 +16,7 @@ export interface AddDeathEffectInput {
   width: number
   height: number
   reward: number
+  rewardEventId: number
   fieldHeight: number
 }
 
@@ -32,7 +33,8 @@ export class DeathEffectSystem {
     host: HTMLElement,
     coinTextures: LoadedCoinRewardTextures,
     random: RandomSource,
-    onRewardPresented: (reward: number) => void,
+    onRewardPresented: (reward: number, rewardEventId: number) => void,
+    onRewardCollectionCompleted: (rewardEventId: number) => void,
   ) {
     this.coinTextures = coinTextures
     this.random = random
@@ -43,6 +45,7 @@ export class DeathEffectSystem {
       coinTextures,
       random,
       onRewardPresented,
+      onRewardCollectionCompleted,
     )
   }
 
@@ -59,6 +62,7 @@ export class DeathEffectSystem {
       input.y,
       input.reward,
       input.fieldHeight,
+      input.rewardEventId,
     )
     const shatterEffects = createShatterEffects(
       input.texture,

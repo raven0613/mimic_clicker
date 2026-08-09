@@ -1,13 +1,14 @@
 import type { Container, Sprite, Texture } from 'pixi.js'
 
 import type { MimicId, RoundResult, Vector2 } from '../../types/game'
+import type { EquipmentId } from '../../configs/equipmentConfig'
 import type { HudSnapshot } from '../../store/gameStore'
 import type { JackpotLifecycle } from '../combat/combat'
 import type { MimicCrackVisual } from './damage/mimicCrackVisual'
 import type {
-  EffectCardAttachment,
-  EffectCardFan,
-} from './effectCards/effectCardVisual'
+  AttachedCardAttachment,
+  RuntimeAttachedCardFan,
+} from './attachedCards/attachedCardVisual'
 
 export interface RuntimeCallbacks {
   onHudSnapshot: (snapshot: HudSnapshot) => void
@@ -27,6 +28,7 @@ export interface LoadedMimicTextures {
 }
 
 export interface RuntimeMimicEntity {
+  runtimeId: number
   mimicId: MimicId
   role: 'regular' | 'jackpotDisguise' | 'jackpot'
   container: Container
@@ -42,8 +44,9 @@ export interface RuntimeMimicEntity {
   nextWeaponDamageAllowedAtMs: number
   jackpotLifecycle: JackpotLifecycle | null
   jackpotVelocity: Vector2
-  attachedCardFan: EffectCardFan | null
-  effectCards: EffectCardAttachment[]
+  attachedCardFan: RuntimeAttachedCardFan | null
+  attachedCards: AttachedCardAttachment[]
+  hiddenEquipmentId: EquipmentId | null
 }
 
 export interface AnimatedEffect {

@@ -8,7 +8,7 @@ import { runBalanceSimulation } from './balanceSimulation'
 describe('fixed-seed balance simulation', () => {
   it('is repeatable for the same config and seed matrix', () => {
     expect(runBalanceSimulation()).toEqual(runBalanceSimulation())
-  })
+  }, 15_000)
 
   it('keeps the initial vertical-slice balance inside provisional targets', () => {
     const report = runBalanceSimulation()
@@ -71,6 +71,67 @@ describe('fixed-seed balance simulation', () => {
     expect(report.effectCardMetrics.defeats.thunder).toBeGreaterThan(0)
     expect(report.effectCardMetrics.defeats.meteorite).toBeGreaterThan(0)
     expect(report.effectCardMetrics.maximumChainDepth).toBeGreaterThanOrEqual(1)
+    expect(report.equipmentMetrics.averageVisibleGeneratedPerRound.sword).toBeGreaterThan(0)
+    expect(report.equipmentMetrics.averageVisibleGeneratedPerRound.ring).toBeGreaterThan(0)
+    expect(report.equipmentMetrics.averageHiddenGeneratedPerRound.sword).toBeGreaterThan(0)
+    expect(report.equipmentMetrics.averageHiddenGeneratedPerRound.ring).toBeGreaterThan(0)
+    expect(report.equipmentMetrics.averageSuccessfulDropsPerRound.sword).toBeGreaterThan(0)
+    expect(report.equipmentMetrics.averageSuccessfulDropsPerRound.ring).toBeGreaterThan(0)
+    expect(
+      report.equipmentMetrics.averageSuccessfulDropsPerRound.sword,
+    ).toBeGreaterThanOrEqual(
+      balanceSimulationConfig.targets.successfulEquipmentDropsPerRound.sword
+        .minimum,
+    )
+    expect(
+      report.equipmentMetrics.averageSuccessfulDropsPerRound.sword,
+    ).toBeLessThanOrEqual(
+      balanceSimulationConfig.targets.successfulEquipmentDropsPerRound.sword
+        .maximum,
+    )
+    expect(
+      report.equipmentMetrics.averageSuccessfulDropsPerRound.ring,
+    ).toBeGreaterThanOrEqual(
+      balanceSimulationConfig.targets.successfulEquipmentDropsPerRound.ring
+        .minimum,
+    )
+    expect(
+      report.equipmentMetrics.averageSuccessfulDropsPerRound.ring,
+    ).toBeLessThanOrEqual(
+      balanceSimulationConfig.targets.successfulEquipmentDropsPerRound.ring
+        .maximum,
+    )
+    expect(
+      report.equipmentMetrics.averageActivationTimeMs,
+    ).toBeLessThanOrEqual(
+      balanceSimulationConfig.targets.maximumAverageEquipmentActivationTimeMs,
+    )
+    expect(
+      report.equipmentMetrics.averageAdditionalDamageByLoadout.duplicateSword
+        .sword,
+    ).toBeGreaterThan(
+      report.equipmentMetrics.averageAdditionalDamageByLoadout.singleSword
+        .sword,
+    )
+    expect(
+      report.equipmentMetrics.averageAdditionalDamageByLoadout.duplicateRing
+        .ring,
+    ).toBeGreaterThan(
+      report.equipmentMetrics.averageAdditionalDamageByLoadout.singleRing.ring,
+    )
+    expect(
+      report.equipmentMetrics.averageRingStrikesByLoadout.none,
+    ).toBeLessThan(
+      report.equipmentMetrics.averageRingStrikesByLoadout.singleRing,
+    )
+    expect(
+      report.equipmentMetrics.averageDefeatedMimicsByLoadout.duplicateSword,
+    ).toBeGreaterThanOrEqual(
+      report.equipmentMetrics.averageDefeatedMimicsByLoadout.none,
+    )
+    expect(
+      report.equipmentMetrics.jackpotDefeatRateByLoadout.duplicateRing,
+    ).toBeGreaterThan(0)
     expect(report.unfinishedRoundCount).toBe(0)
 
     console.info(report.summary)

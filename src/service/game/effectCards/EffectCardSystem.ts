@@ -6,7 +6,7 @@ import { destroySpriteSheetFrameTextures } from '../assets/horizontalSpriteSheet
 import type { LoadedEffectCardTextures } from '../assets/runtimeAssets'
 import type { RuntimeMimicEntity } from '../runtimeTypes'
 import { advanceEffectCardWindup } from './effectCardRules'
-import type { EffectCardAttachment } from './effectCardVisual'
+import type { EffectCardAttachment } from '../attachedCards/attachedCardVisual'
 import { MeteoriteEffectSystem } from './MeteoriteEffectSystem'
 import { ThunderEffectSystem } from './ThunderEffectSystem'
 

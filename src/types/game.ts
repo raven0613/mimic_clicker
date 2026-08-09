@@ -34,4 +34,9 @@ export interface Vector2 {
   y: number
 }
 
+export interface EquipmentCollectionTargets {
+  slotTargets: Array<Vector2 | null>
+  backpackTarget: Vector2 | null
+}
+
 export type RandomSource = () => number

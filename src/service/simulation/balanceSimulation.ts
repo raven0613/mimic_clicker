@@ -1,7 +1,7 @@
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
-import { attachedCardConfig } from '../../configs/attachedCardConfig'
 import { combatConfig } from '../../configs/combatConfig'
 import { effectCardConfig } from '../../configs/effectCardConfig'
+import { equipmentConfig } from '../../configs/equipmentConfig'
 import { jackpotConfig } from '../../configs/jackpotConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import { roundConfig } from '../../configs/roundConfig'
@@ -9,12 +9,10 @@ import { spawnConfig } from '../../configs/spawnConfig'
 import type { JackpotOutcome, MimicId, RectangleBounds } from '../../types/game'
 import { calculateJackpotReward } from '../progression/progression'
 import { selectSpawnPosition, selectWeightedMimicId } from '../spawn/spawn'
+import type { EffectCardId } from '../game/attachedCards/attachedCardRules'
 import {
   calculateInitialThunderDamage,
   calculateInitialMeteoriteDamage,
-  selectEffectCardAssignments,
-  selectJackpotEffectCardAssignments,
-  type EffectCardId,
 } from '../game/effectCards/effectCardRules'
 import {
   collectMeteoriteHitTargets,
@@ -24,6 +22,10 @@ import {
 } from '../game/effectCards/meteoriteRules'
 import { createSeededRandom } from './createSeededRandom'
 import {
+  selectSimulatedAttachedContent,
+  selectSimulatedJackpotAttachedContent,
+} from './attachedCardSimulation'
+import {
   createBalanceSimulationReport,
   type BalanceSimulationReport,
 } from './balanceSimulationReport'
@@ -31,17 +33,24 @@ import {
   simulateEffectCardCombat,
   type BalanceCombatMimic,
 } from './effectCardBalanceSimulation'
+import {
+  simulateEquipmentCombatRound,
+  type RoundEquipmentMetrics,
+} from './equipmentBalanceSimulation'
 import { simulateRequiredWeaponHits } from './weaponAttackSimulation'
 
 export type StageKey = 'normalOnly' | 'normalRare1' | 'allMimics'
 type PlayerModel = keyof typeof balanceSimulationConfig.playerClickRatesPerSecond
 type AccuracyModel = keyof typeof balanceSimulationConfig.accuracyRates
+export type EquipmentLoadoutKey =
+  keyof typeof balanceSimulationConfig.equipmentLoadouts
 
 export interface SimulatedRound {
   stage: StageKey
   playerModel: PlayerModel
   accuracyModel: AccuracyModel
   jackpotCase: JackpotOutcome
+  equipmentLoadout: EquipmentLoadoutKey
   generatedByMimic: Record<MimicId, number>
   defeatedByMimic: Record<MimicId, number>
   placementAttempts: number
@@ -63,6 +72,10 @@ export interface SimulatedRound {
   meteoritesLaunched: number
   meteoriteImpacts: number
   maximumEffectChainDepth: number
+  swordAdditionalDamage: number
+  ringAdditionalDamage: number
+  ringStrikes: number
+  equipment: RoundEquipmentMetrics
   finished: boolean
 }
 
@@ -130,11 +143,7 @@ function simulateSpawnStream(
 
     const mimicId = selectWeightedMimicId(pool, random)
     generatedByMimic[mimicId] += 1
-    const effectCardIds = selectEffectCardAssignments(
-      false,
-      attachedCardConfig.capacity.byMimic[mimicId],
-      random,
-    ).map(({ id }) => id)
+    const attachedContent = selectSimulatedAttachedContent(mimicId, random)
     spawnedMimics.push({
       id: spawnedMimics.length,
       mimicId,
@@ -145,7 +154,7 @@ function simulateSpawnStream(
       jackpotPhase: null,
       spawnedAtMs: nextSpawnMs,
       initialY: position.y + spawnConfig.cardHeightPixels / 2,
-      effectCardIds,
+      ...attachedContent,
     })
     activeBounds.push({
       x: position.x,
@@ -182,6 +191,7 @@ function simulateRound(
   playerModel: PlayerModel,
   accuracyModel: AccuracyModel,
   jackpotCase: JackpotOutcome,
+  equipmentLoadout: EquipmentLoadoutKey,
   seed: number,
 ): SimulatedRound {
   const pool = stagePools[stage]
@@ -189,16 +199,22 @@ function simulateRound(
   const random = createSeededRandom(seed ^ 0x9e3779b9)
   const clickRate = balanceSimulationConfig.playerClickRatesPerSecond[playerModel]
   const accuracy = balanceSimulationConfig.accuracyRates[accuracyModel]
+  const initialEquipment =
+    balanceSimulationConfig.equipmentLoadouts[equipmentLoadout]
+  const swordCount = initialEquipment.filter((id) => id === 'sword').length
+  const weaponDamage =
+    combatConfig.initialWeaponDamage +
+    swordCount * equipmentConfig.sword.weaponDamageBonus
   let landedClickBudget = roundConfig.durationMs * clickRate * accuracy / 1_000
   const shellMimicId = selectWeightedMimicId(pool, random)
-  const shellEffectCardIds = selectEffectCardAssignments(
-    false,
-    attachedCardConfig.capacity.byMimic[shellMimicId],
+  const shellAttachedContent = selectSimulatedAttachedContent(
+    shellMimicId,
     random,
-  ).map(({ id }) => id)
+  )
+  const shellEffectCardIds = shellAttachedContent.effectCardIds
   const shellHasThunderCard = shellEffectCardIds.includes('thunder')
   const shellHits = Math.ceil(
-    mimicConfigs[shellMimicId].maximumHealth / combatConfig.initialWeaponDamage,
+    mimicConfigs[shellMimicId].maximumHealth / weaponDamage,
   )
   const weaponAttemptIntervalMs = 1_000 / (clickRate * accuracy)
   const shellWeaponAttacks = simulateRequiredWeaponHits(
@@ -214,9 +230,11 @@ function simulateRound(
   if (jackpotRevealed) {
     landedClickBudget -= shellWeaponAttacks.attemptCount
   }
-  const jackpotEffectCardIds = jackpotRevealed
-    ? selectJackpotEffectCardAssignments(random).map(({ id }) => id)
-    : []
+  const jackpotAttachedContent = jackpotRevealed
+    ? selectSimulatedJackpotAttachedContent(random)
+    : null
+  const jackpotEffectCardIds =
+    jackpotAttachedContent?.effectCardIds ?? []
   const shellDefeatAtMs = shellWeaponAttacks.completedAtMs
   const regularTargetsAtReveal = spawnMetrics.spawnedMimics.filter(
     (mimic) => mimic.spawnedAtMs <= shellDefeatAtMs,
@@ -277,7 +295,7 @@ function simulateRound(
       shellMeteoriteHitsJackpot * calculateInitialMeteoriteDamage(),
   )
   const jackpotHits = Math.ceil(
-    jackpotHealthBeforeClicks / combatConfig.initialWeaponDamage,
+    jackpotHealthBeforeClicks / weaponDamage,
   )
   const jackpotWeaponAttacks = simulateRequiredWeaponHits(
     jackpotHits,
@@ -329,6 +347,19 @@ function simulateRound(
     random,
     scheduledCardEvents,
   )
+  const equipmentRandom = createSeededRandom(seed ^ 0x85ebca6b)
+  const equipment = simulateEquipmentCombatRound({
+    ordinaryMimics: spawnMetrics.spawnedMimics,
+    shellMimicId,
+    shellContent: shellAttachedContent,
+    jackpotContent: selectSimulatedJackpotAttachedContent(equipmentRandom),
+    jackpotReward: calculateJackpotReward(pool),
+    jackpotCase,
+    initialLoadout: initialEquipment,
+    clickRate,
+    accuracy,
+    random: equipmentRandom,
+  })
   const generatedEffectCardIds = [
     ...spawnMetrics.spawnedMimics.flatMap((mimic) => mimic.effectCardIds),
     ...shellEffectCardIds,
@@ -363,6 +394,7 @@ function simulateRound(
     playerModel,
     accuracyModel,
     jackpotCase,
+    equipmentLoadout,
     generatedByMimic: spawnMetrics.generatedByMimic,
     placementAttempts: spawnMetrics.placementAttempts,
     placementRejections: spawnMetrics.placementRejections,
@@ -389,6 +421,10 @@ function simulateRound(
     meteoritesLaunched: combatMetrics.meteoritesLaunched,
     meteoriteImpacts: combatMetrics.meteoriteImpacts,
     maximumEffectChainDepth: combatMetrics.maximumEffectChainDepth,
+    swordAdditionalDamage: equipment.swordAdditionalDamage,
+    ringAdditionalDamage: equipment.ringAdditionalDamage,
+    ringStrikes: equipment.ringStrikes,
+    equipment,
     finished: true,
   }
 }
@@ -410,10 +446,21 @@ export function runBalanceSimulation(): BalanceSimulationReport {
         balanceSimulationConfig.accuracyRates,
       ) as AccuracyModel[]) {
         for (const jackpotCase of balanceSimulationConfig.jackpotCases) {
-          for (const seed of balanceSimulationConfig.seeds) {
-            rounds.push(
-              simulateRound(stage, playerModel, accuracyModel, jackpotCase, seed),
-            )
+          for (const equipmentLoadout of Object.keys(
+            balanceSimulationConfig.equipmentLoadouts,
+          ) as EquipmentLoadoutKey[]) {
+            for (const seed of balanceSimulationConfig.seeds) {
+              rounds.push(
+                simulateRound(
+                  stage,
+                  playerModel,
+                  accuracyModel,
+                  jackpotCase,
+                  equipmentLoadout,
+                  seed,
+                ),
+              )
+            }
           }
         }
       }

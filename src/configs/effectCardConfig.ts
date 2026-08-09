@@ -1,6 +1,6 @@
 import type {
   AttachedCardFrameId,
-  AttachedCardRarity,
+  EffectCardRarity,
 } from './attachedCardConfig'
 
 export const effectCardConfig = {
@@ -72,6 +72,6 @@ export const effectCardDefinitions = [
 ] as const satisfies readonly {
   id: 'thunder' | 'meteorite'
   frameId: AttachedCardFrameId
-  rarity: AttachedCardRarity
+  rarity: EffectCardRarity
   chance: number
 }[]

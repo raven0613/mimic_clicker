@@ -1,5 +1,7 @@
+import type { EquipmentId } from './equipmentConfig'
+
 export const balanceSimulationConfig = {
-  configVersion: 'per-target-weapon-damage-interval-v8',
+  configVersion: 'equipment-system-v10',
   seeds: [11, 29, 47, 83, 131, 197, 263, 347, 431, 557, 683, 809],
   field: {
     widthPixels: 1_280,
@@ -21,11 +23,24 @@ export const balanceSimulationConfig = {
     'escaped',
     'roundExpiredDuringChase',
   ],
+  equipmentLoadouts: {
+    none: [],
+    singleSword: ['sword'],
+    singleRing: ['ring'],
+    duplicateSword: ['sword', 'sword'],
+    duplicateRing: ['ring', 'ring'],
+    swordAndRing: ['sword', 'ring'],
+  } satisfies Record<string, readonly EquipmentId[]>,
   targets: {
     maximumPlacementRejectionRatio: 0.2,
     maximumSpawnShareDeviation: 0.08,
     targetProfileDefeatedMimics: { minimum: 42, maximum: 55 },
     targetProfileJackpotDefeatRate: { minimum: 0.95, maximum: 1 },
     effectCardCarrierRateTolerance: 0.02,
+    successfulEquipmentDropsPerRound: {
+      sword: { minimum: 4, maximum: 10 },
+      ring: { minimum: 1, maximum: 4 },
+    },
+    maximumAverageEquipmentActivationTimeMs: 3_500,
   },
 } as const

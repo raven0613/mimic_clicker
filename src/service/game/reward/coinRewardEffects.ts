@@ -8,6 +8,7 @@ import {
   calculateVisualCoinCount,
   type CoinRewardMotion,
 } from './coinRewardMotion'
+import { createCoinRewardMotion } from './coinRewardMotionFactory'
 import type { CoinRewardSpritePool } from './coinRewardSpritePool'
 import type { LoadedCoinRewardTextures } from './coinRewardTextures'
 
@@ -20,6 +21,7 @@ interface RuntimeCoinReward {
 export interface RuntimeCoinRewardBatch {
   coins: RuntimeCoinReward[]
   reward: number
+  rewardEventId: number
   presentationTriggered: boolean
 }
 
@@ -27,100 +29,12 @@ interface CreateCoinRewardBatchInput {
   x: number
   y: number
   reward: number
+  rewardEventId: number
   fieldHeight: number
   availableCoinSlots: number
   random: RandomSource
   textures: LoadedCoinRewardTextures
   spritePool: CoinRewardSpritePool
-}
-
-function randomBetween(
-  minimum: number,
-  maximum: number,
-  random: RandomSource,
-): number {
-  return minimum + (maximum - minimum) * random()
-}
-
-function randomIntegerInclusive(
-  minimum: number,
-  maximum: number,
-  random: RandomSource,
-): number {
-  return minimum + Math.floor(random() * (maximum - minimum + 1))
-}
-
-function createCoinMotion(
-  input: CreateCoinRewardBatchInput,
-  coinIndex: number,
-): CoinRewardMotion {
-  const burst = coinRewardAnimationConfig.burst
-  const landing = coinRewardAnimationConfig.landing
-  const collection = coinRewardAnimationConfig.collection
-  const launchAngle = randomBetween(
-    burst.minimumLaunchAngleRadians,
-    burst.maximumLaunchAngleRadians,
-    input.random,
-  )
-  const launchSpeed = randomBetween(
-    burst.minimumSpeedPixelsPerSecond,
-    burst.maximumSpeedPixelsPerSecond,
-    input.random,
-  )
-  const x = input.x + randomBetween(-burst.spawnJitterPixels, burst.spawnJitterPixels, input.random)
-  const y = input.y + randomBetween(-burst.spawnJitterPixels, burst.spawnJitterPixels, input.random)
-  const requestedGroundY =
-    input.y +
-    randomBetween(
-      landing.minimumOffsetPixels,
-      landing.maximumOffsetPixels,
-      input.random,
-    )
-  const maximumGroundY =
-    input.fieldHeight - landing.bottomSafeMarginPixels
-
-  return {
-    phase: 'airborne',
-    x,
-    y,
-    velocityX: Math.cos(launchAngle) * launchSpeed,
-    velocityY: Math.sin(launchAngle) * launchSpeed,
-    groundY: Math.max(input.y, Math.min(maximumGroundY, requestedGroundY)),
-    remainingBounces: randomIntegerInclusive(
-      landing.minimumBounceCount,
-      landing.maximumBounceCount,
-      input.random,
-    ),
-    bounceVelocityRetention: randomBetween(
-      landing.minimumVelocityRetention,
-      landing.maximumVelocityRetention,
-      input.random,
-    ),
-    phaseElapsedMs: 0,
-    flipElapsedMs:
-      input.random() *
-      (1_000 / coinRewardAnimationConfig.sprite.flipFramesPerSecond) *
-      coinRewardAnimationConfig.spriteSheet.frameCount,
-    restDurationMs:
-      randomBetween(
-        landing.minimumRestDurationMs,
-        landing.maximumRestDurationMs,
-        input.random,
-      ) +
-      coinIndex * collection.staggerPerCoinMs,
-    collectionStartX: 0,
-    collectionStartY: 0,
-    collectionDurationMs: randomBetween(
-      collection.minimumDurationMs,
-      collection.maximumDurationMs,
-      input.random,
-    ),
-    collectionArcHeightPixels: randomBetween(
-      collection.minimumArcHeightPixels,
-      collection.maximumArcHeightPixels,
-      input.random,
-    ),
-  }
 }
 
 export function createCoinRewardBatch(
@@ -132,13 +46,19 @@ export function createCoinRewardBatch(
   )
   const coins = Array.from({ length: visualCoinCount }, (_, coinIndex) => {
     const sprite = input.spritePool.acquire()
-    const displaySize = randomBetween(
-      coinRewardAnimationConfig.sprite.minimumDisplaySizePixels,
-      coinRewardAnimationConfig.sprite.maximumDisplaySizePixels,
-      input.random,
-    )
+    const displaySize =
+      coinRewardAnimationConfig.sprite.minimumDisplaySizePixels +
+      (coinRewardAnimationConfig.sprite.maximumDisplaySizePixels -
+        coinRewardAnimationConfig.sprite.minimumDisplaySizePixels) *
+        input.random()
     sprite.setSize(displaySize)
-    const motion = createCoinMotion(input, coinIndex)
+    const motion = createCoinRewardMotion({
+      x: input.x,
+      y: input.y,
+      fieldHeight: input.fieldHeight,
+      coinIndex,
+      random: input.random,
+    })
     sprite.position.set(motion.x, motion.y)
 
     return {
@@ -151,6 +71,7 @@ export function createCoinRewardBatch(
   return {
     coins,
     reward: input.reward,
+    rewardEventId: input.rewardEventId,
     presentationTriggered: false,
   }
 }

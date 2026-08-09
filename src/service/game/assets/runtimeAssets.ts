@@ -9,6 +9,8 @@ import explosionStripUrl from '../../../assets/effects/explode.png'
 import hitStripUrl from '../../../assets/effects/hit.png'
 import meteoriteStripUrl from '../../../assets/effects/meteorite.png'
 import thunderStripUrl from '../../../assets/effects/thunder.png'
+import ringEquipmentCardUrl from '../../../assets/equipment/decoration/ring_pearl.png'
+import swordEquipmentCardUrl from '../../../assets/equipment/weapon/sword.png'
 import jackpotImageUrl from '../../../assets/mimic/jackpot.png'
 import normalImageUrl from '../../../assets/mimic/normal.png'
 import rare1ImageUrl from '../../../assets/mimic/rare1.png'
@@ -21,9 +23,13 @@ import type { LoadedCoinRewardTextures } from '../reward/coinRewardTextures'
 import type { LoadedMimicTextures } from '../runtimeTypes'
 import { createHorizontalSpriteSheetFrames } from './horizontalSpriteSheetTextures'
 
-export interface LoadedEffectCardTextures {
+export interface LoadedAttachedCardTextures {
   frames: { normal: Texture }
-  icons: { thunder: Texture; meteorite: Texture }
+  effectIcons: { thunder: Texture; meteorite: Texture }
+  equipmentCards: { sword: Texture; ring: Texture }
+}
+
+export interface LoadedEffectCardTextures {
   thunderFrames: Texture[]
   meteoriteFrames: Texture[]
   explosionFrames: Texture[]
@@ -36,6 +42,7 @@ export interface LoadedCombatEffectTextures {
 export interface LoadedRuntimeAssets {
   mimics: LoadedMimicTextures
   coins: LoadedCoinRewardTextures
+  attachedCards: LoadedAttachedCardTextures
   effectCards: LoadedEffectCardTextures
   combatEffects: LoadedCombatEffectTextures
 }
@@ -59,6 +66,8 @@ export async function loadRuntimeAssets(): Promise<LoadedRuntimeAssets> {
     meteoriteStrip,
     explosionStrip,
     hitStrip,
+    swordEquipmentCard,
+    ringEquipmentCard,
   ] = await Promise.all([
     Assets.load<Texture>(normalImageUrl),
     Assets.load<Texture>(rare1ImageUrl),
@@ -73,6 +82,8 @@ export async function loadRuntimeAssets(): Promise<LoadedRuntimeAssets> {
     Assets.load<Texture>(nearestTextureOptions(meteoriteStripUrl)),
     Assets.load<Texture>(nearestTextureOptions(explosionStripUrl)),
     Assets.load<Texture>(nearestTextureOptions(hitStripUrl)),
+    Assets.load<Texture>(nearestTextureOptions(swordEquipmentCardUrl)),
+    Assets.load<Texture>(nearestTextureOptions(ringEquipmentCardUrl)),
   ])
   assertTextureDimensions(
     normalFrame,
@@ -92,6 +103,18 @@ export async function loadRuntimeAssets(): Promise<LoadedRuntimeAssets> {
     attachedCardConfig.card.sourceWidthPixels,
     attachedCardConfig.card.sourceHeightPixels,
   )
+  assertTextureDimensions(
+    swordEquipmentCard,
+    'equipment/weapon/sword',
+    attachedCardConfig.card.sourceWidthPixels,
+    attachedCardConfig.card.sourceHeightPixels,
+  )
+  assertTextureDimensions(
+    ringEquipmentCard,
+    'equipment/decoration/ring_pearl',
+    attachedCardConfig.card.sourceWidthPixels,
+    attachedCardConfig.card.sourceHeightPixels,
+  )
 
   return {
     mimics: { normal, rare1, rare2, jackpot },
@@ -102,9 +125,15 @@ export async function loadRuntimeAssets(): Promise<LoadedRuntimeAssets> {
       ),
       idle: coinIdle,
     },
-    effectCards: {
+    attachedCards: {
       frames: { normal: normalFrame },
-      icons: { thunder: thunderIcon, meteorite: meteoriteIcon },
+      effectIcons: { thunder: thunderIcon, meteorite: meteoriteIcon },
+      equipmentCards: {
+        sword: swordEquipmentCard,
+        ring: ringEquipmentCard,
+      },
+    },
+    effectCards: {
       thunderFrames: createHorizontalSpriteSheetFrames(
         thunderStrip,
         effectCardConfig.thunder.spriteSheet,

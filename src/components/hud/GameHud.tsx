@@ -5,15 +5,22 @@ import { jackpotConfig } from '../../configs/jackpotConfig'
 import { roundConfig } from '../../configs/roundConfig'
 import type { HudSnapshot } from '../../store/gameStore'
 import type { Vector2 } from '../../types/game'
+import type { EquipmentCollectionTargets } from '../../types/game'
+import { EquipmentHud } from './EquipmentHud'
 import { RollingGoldCounter } from './RollingGoldCounter'
 import { TimerBar } from './TimerBar'
 
 interface GameHudProps {
   hud: HudSnapshot
   onGoldTargetChange: (target: Vector2 | null) => void
+  onEquipmentTargetsChange: (targets: EquipmentCollectionTargets) => void
 }
 
-export function GameHud({ hud, onGoldTargetChange }: GameHudProps) {
+export function GameHud({
+  hud,
+  onGoldTargetChange,
+  onEquipmentTargetsChange,
+}: GameHudProps) {
   const goldTargetRef = useRef<HTMLImageElement>(null)
 
   useLayoutEffect(() => {
@@ -73,6 +80,7 @@ export function GameHud({ hud, onGoldTargetChange }: GameHudProps) {
           {hud.defeatedMimics}
         </span>
       </div>
+      <EquipmentHud onTargetsChange={onEquipmentTargetsChange} />
     </div>
   )
 }
