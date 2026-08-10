@@ -10,14 +10,45 @@ export interface EquipmentDrop {
   rarity: AttachedCardRarity
 }
 
+export interface EquipmentInstance extends EquipmentDrop {
+  instanceId: number
+  acquiredSequence: number
+}
+
 export type EquipmentDestination =
   | { type: 'slot'; slotIndex: number }
   | { type: 'backpack' }
 
-export interface EquipmentReservation extends EquipmentDrop {
+export interface EquipmentReservation extends EquipmentInstance {
   reservationId: number
   destination: EquipmentDestination
 }
+
+export type EquipmentSlotSnapshot =
+  | { status: 'empty' }
+  | { status: 'reserved'; reservationId: number }
+  | { status: 'equipped'; instance: EquipmentInstance }
+
+export interface EquipmentInventorySnapshot {
+  slots: EquipmentSlotSnapshot[]
+  stored: EquipmentInstance[]
+}
+
+export interface MoveEquipmentCommand {
+  instanceId: number
+  destination: EquipmentDestination
+}
+
+export type MoveEquipmentResult =
+  | { status: 'moved' }
+  | {
+      status: 'rejected'
+      reason:
+        | 'instanceNotFound'
+        | 'invalidDestination'
+        | 'destinationReserved'
+        | 'sameLocation'
+    }
 
 export interface AcceptedManualHit {
   targetId: number
@@ -34,7 +65,7 @@ export interface RingStrike {
 type EquipmentSlot =
   | { status: 'empty' }
   | { status: 'reserved'; reservationId: number }
-  | { status: 'equipped'; id: EquipmentId }
+  | { status: 'equipped'; instance: EquipmentInstance }
 
 const rarityPriority: Record<AttachedCardRarity, number> = {
   N: 0,
@@ -47,9 +78,11 @@ const rarityPriority: Record<AttachedCardRarity, number> = {
 export class EquipmentState {
   private readonly slots: EquipmentSlot[]
   private readonly reservations = new Map<number, EquipmentReservation>()
-  private readonly storedEquipment: EquipmentId[] = []
+  private readonly storedEquipment: EquipmentInstance[] = []
   private readonly pendingRingStrikes: RingStrike[] = []
   private nextReservationId = 1
+  private nextInstanceId = 1
+  private nextAcquiredSequence = 1
   private acceptedManualHitCount = 0
   private ringTimeUntilNextStrikeMs: number | null = null
 
@@ -70,6 +103,16 @@ export class EquipmentState {
       const reservationId = this.nextReservationId
       this.nextReservationId += 1
       return reservationId
+    })
+    const instances = drops.map((drop) => {
+      const instance: EquipmentInstance = {
+        ...drop,
+        instanceId: this.nextInstanceId,
+        acquiredSequence: this.nextAcquiredSequence,
+      }
+      this.nextInstanceId += 1
+      this.nextAcquiredSequence += 1
+      return instance
     })
     const prioritizedDrops = drops
       .map((drop, index) => ({ drop, index }))
@@ -95,13 +138,13 @@ export class EquipmentState {
       }
     }
 
-    return drops.map((drop, index) => {
+    return instances.map((instance, index) => {
       const reservationId = reservationIds[index]
       const destination = destinations.get(index)
       if (!destination) {
         throw new Error(`Missing equipment destination for drop index ${index}`)
       }
-      const reservation = { ...drop, reservationId, destination }
+      const reservation = { ...instance, reservationId, destination }
       this.reservations.set(reservationId, reservation)
       return reservation
     })
@@ -119,9 +162,12 @@ export class EquipmentState {
           `Equipment slot ${slotIndex} does not hold reservation ${reservationId}`,
         )
       }
-      this.slots[slotIndex] = { status: 'equipped', id: reservation.id }
+      this.slots[slotIndex] = {
+        status: 'equipped',
+        instance: toEquipmentInstance(reservation),
+      }
     } else {
-      this.storedEquipment.push(reservation.id)
+      this.storedEquipment.push(toEquipmentInstance(reservation))
     }
     this.reservations.delete(reservationId)
   }
@@ -140,22 +186,90 @@ export class EquipmentState {
 
   public getEquippedCount(id: EquipmentId): number {
     return this.slots.filter(
-      (slot) => slot.status === 'equipped' && slot.id === id,
+      (slot) => slot.status === 'equipped' && slot.instance.id === id,
     ).length
   }
 
-  public getStoredEquipment(): EquipmentId[] {
-    return [...this.storedEquipment]
+  public getInventorySnapshot(): EquipmentInventorySnapshot {
+    return {
+      slots: this.slots.map((slot) => {
+        if (slot.status !== 'equipped') return { ...slot }
+        return { status: 'equipped', instance: { ...slot.instance } }
+      }),
+      stored: this.storedEquipment.map((instance) => ({ ...instance })),
+    }
+  }
+
+  public moveEquipment(command: MoveEquipmentCommand): MoveEquipmentResult {
+    const sourceSlotIndex = this.slots.findIndex(
+      (slot) =>
+        slot.status === 'equipped' &&
+        slot.instance.instanceId === command.instanceId,
+    )
+    const storedIndex = this.storedEquipment.findIndex(
+      ({ instanceId }) => instanceId === command.instanceId,
+    )
+    if (sourceSlotIndex < 0 && storedIndex < 0) {
+      return { status: 'rejected', reason: 'instanceNotFound' }
+    }
+
+    const ringCountBefore = this.getEquippedCount('ring')
+    if (command.destination.type === 'backpack') {
+      if (storedIndex >= 0) {
+        return { status: 'rejected', reason: 'sameLocation' }
+      }
+      const sourceSlot = this.slots[sourceSlotIndex]
+      if (sourceSlot.status !== 'equipped') {
+        return { status: 'rejected', reason: 'instanceNotFound' }
+      }
+      this.storedEquipment.push(sourceSlot.instance)
+      this.slots[sourceSlotIndex] = { status: 'empty' }
+      this.resetRingProgressAfterMove(ringCountBefore)
+      return { status: 'moved' }
+    }
+
+    const { slotIndex } = command.destination
+    if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= this.slots.length) {
+      return { status: 'rejected', reason: 'invalidDestination' }
+    }
+    if (slotIndex === sourceSlotIndex) {
+      return { status: 'rejected', reason: 'sameLocation' }
+    }
+    const destinationSlot = this.slots[slotIndex]
+    if (destinationSlot.status === 'reserved') {
+      return { status: 'rejected', reason: 'destinationReserved' }
+    }
+
+    if (storedIndex >= 0) {
+      const [sourceInstance] = this.storedEquipment.splice(storedIndex, 1)
+      if (destinationSlot.status === 'equipped') {
+        this.storedEquipment.push(destinationSlot.instance)
+      }
+      this.slots[slotIndex] = { status: 'equipped', instance: sourceInstance }
+    } else {
+      const sourceSlot = this.slots[sourceSlotIndex]
+      if (sourceSlot.status !== 'equipped') {
+        return { status: 'rejected', reason: 'instanceNotFound' }
+      }
+      this.slots[slotIndex] = sourceSlot
+      this.slots[sourceSlotIndex] =
+        destinationSlot.status === 'equipped'
+          ? destinationSlot
+          : { status: 'empty' }
+    }
+    this.resetRingProgressAfterMove(ringCountBefore)
+    return { status: 'moved' }
   }
 
   public getSettlementEquipmentSnapshot(): EquipmentId[] {
     const equipped = this.slots.flatMap((slot) =>
-      slot.status === 'equipped' ? [slot.id] : [],
+      slot.status === 'equipped' ? [slot.instance.id] : [],
     )
     const pending = [...this.reservations.values()].map(
       (reservation) => reservation.id,
     )
-    return [...equipped, ...this.storedEquipment, ...pending]
+    const stored = this.storedEquipment.map(({ id }) => id)
+    return [...equipped, ...stored, ...pending]
   }
 
   public calculateWeaponDamage(baseDamage: number): number {
@@ -229,8 +343,27 @@ export class EquipmentState {
     this.acceptedManualHitCount = 0
     this.ringTimeUntilNextStrikeMs = null
     this.nextReservationId = 1
+    this.nextInstanceId = 1
+    this.nextAcquiredSequence = 1
     for (let index = 0; index < this.slots.length; index += 1) {
       this.slots[index] = { status: 'empty' }
     }
+  }
+
+  private resetRingProgressAfterMove(ringCountBefore: number): void {
+    if (ringCountBefore > 0 && this.getEquippedCount('ring') === 0) {
+      this.acceptedManualHitCount = 0
+    }
+  }
+}
+
+function toEquipmentInstance(
+  reservation: EquipmentReservation,
+): EquipmentInstance {
+  return {
+    instanceId: reservation.instanceId,
+    acquiredSequence: reservation.acquiredSequence,
+    id: reservation.id,
+    rarity: reservation.rarity,
   }
 }

@@ -40,11 +40,13 @@
 
 - 主倒數條。
 - Jackpot 追逐倒數條。
-- 金錢、通用裝備欄、inactive 背包 icon 與其他 HUD。
+- 金錢、通用裝備欄、可開啟的中央背包面板、排序控制、拖曳／點選換裝、裝備 tooltip 與其他 HUD。
 - 戰鬥收益、裝備自動出售分組、本局總收益、解鎖、升級、匯入／匯出與重置 UI。
 - 結算時覆蓋 canvas 的輕微高斯模糊。
 
 HUD 的非互動區域應讓指標事件穿透到 canvas；按鈕、對話框與結算遮罩才攔截事件。進入結算時，除了 UI 遮罩攔截之外，遊戲流程本身也必須拒絕戰鬥輸入。
+
+背包遮罩與結算遮罩是兩種不同呈現：背包只使用不帶 `filter`／`backdrop-filter` 的半透明背景攔截戰場輸入，不套用高斯模糊。背包面板、完整裝備欄、槽內實際卡圖、拖曳預覽及 tooltip 必須位於該遮罩上方並維持原清晰度；只有正式結算沿用輕微高斯模糊。
 
 右上角金錢 HUD 顯示本局累計收益。它使用 React／SCSS 實作逐位數字滾輪，只接收顯示目標，不參與獎勵計算或入帳。
 
@@ -60,9 +62,9 @@ HUD 的非互動區域應讓指標事件穿透到 canvas；按鈕、對話框與
 
 | 層級 | 保存內容 | 不保存內容 |
 | --- | --- | --- |
-| XState | 載入、待機、遊戲中、Jackpot 追逐、單局收尾、結算存檔、結算揭示、解鎖提示等流程 | 每幀位置、速度與動畫進度 |
-| Zustand | 已載入的局外進度、貨幣、升級、UI 所需結算結果快照 | XState 已持有的流程狀態、IndexedDB 寫入細節 |
-| Pixi runtime | 場上實體、效果卡、局內裝備／槽位保留、成功掉落實例、座標、速度、血量、逐幀計時與動畫 | 永久進度、出售價格與存檔格式 |
+| XState | 載入、待機、遊戲中、背包開關、Jackpot 追逐、單局收尾、結算存檔、結算揭示、解鎖提示等流程 | 每幀位置、速度與動畫進度 |
+| Zustand | 已載入的局外進度、貨幣、升級、UI 所需結算結果與背包低頻快照 | XState 已持有的流程狀態、IndexedDB 寫入細節 |
+| Pixi runtime | 場上實體、效果卡、局內裝備實例／槽位保留、成功掉落實例、座標、速度、血量、逐幀計時與動畫 | 永久進度、出售價格與存檔格式 |
 | Save service | IndexedDB 讀寫、版本與匯入／匯出 | React UI 與 Pixi 顯示物件 |
 
 ### 3.1 XState 流程責任
@@ -73,10 +75,8 @@ HUD 的非互動區域應讓指標事件穿透到 canvas；按鈕、對話框與
 loadingSave
 → ready
 → playing
-   ├─ jackpotDisguised
-   ├─ jackpotWaitingToReturn
-   ├─ jackpotChasing
-   └─ jackpotResolved
+   ├─ gameplay: jackpotDisguised／jackpotWaitingToReturn／jackpotChasing／jackpotResolved
+   └─ backpack: closed／open
 → finishingRound
 → savingSettlement
 → settlement
@@ -85,6 +85,7 @@ loadingSave
 ```
 
 - XState 只接收 `JACKPOT_REVEALED`、`JACKPOT_TIMER_EXPIRED`、`ROUND_TIMER_EXPIRED`、`JACKPOT_EXITED` 等離散事件。
+- `OPEN_BACKPACK`／`CLOSE_BACKPACK` 只切換 `playing` 內的正交背包狀態並協調 runtime 暫停意圖，不得離開或重設目前 Jackpot 子狀態；離開 `playing` 前必須先關閉背包並取消未提交操作。
 - 不得每幀向 XState 發送位置、速度或一般寶箱血量。
 - 不得在 Zustand 再保存一份可與 machine 不一致的 `gamePhase`。
 
@@ -97,6 +98,7 @@ loadingSave
 - 金幣與永久升級。
 - 最近一局結果快照。
 - React HUD 需要的低頻資料。
+- 背包與裝備欄顯示所需的版本化低頻快照；它不是裝備效果或槽位分配的真相。
 
 Zustand 是記憶體中的應用狀態，不是存檔系統。載入、購買升級、完成結算或確認解鎖後，由明確的協調流程呼叫 save service。
 
@@ -123,7 +125,8 @@ Zustand 是記憶體中的應用狀態，不是存檔系統。載入、購買升
 - 位移、倒數與動畫使用 ticker 的 `deltaMS`，不得把 `deltaTime` 當毫秒。
 - 高頻更新直接作用於 Pixi runtime 與顯示物件，不經過 React render 或 Zustand action。
 - 暫停、頁籤切換與大型幀落後不得造成單幀超大位移；時間邏輯需有明確上限或補償策略。
-- 遊戲更新與純視覺更新必須可分開啟停。
+- 背包暫停由 runtime 在 ticker 的遊戲更新入口提早返回，不停止 `Application` ticker 或 renderer；所有遊戲系統及手動更新的 Pixi 動畫都停在同一 frame，恢復後不補算暫停時間。React 面板保持可操作。
+- 遊戲更新與 React 的純 UI 動畫必須可分開啟停；代表遊戲進度的 HUD SCSS 動畫需跟隨 runtime 暫停狀態。
 
 ### 4.1 正式單局模式
 
@@ -390,8 +393,9 @@ Zustand 是記憶體中的應用狀態，不是存檔系統。載入、購買升
 - 金幣與裝備共用可注入運動參數的純資料 burst／bounce step；共用核心負責速度、重力、落地穿透修正、反彈與停留轉換，金幣和裝備只提供各自 config 與顯示同步。不得在裝備模組複製 coin-named 的位移公式或另建行為相同的平行物理。
 - 裝備與金幣可同時噴出，但裝備排程需依 config 晚於同事件金幣抵達；無金幣的 Jackpot 偽裝破殼使用明確 fallback。所有等待、飛行與 Ring 固定間隔都由 app ticker 的 `deltaMS` 推進，不使用 `setTimeout` 或牆鐘。
 - 裝備卡 texture 由 Pixi `Assets` 載入並快取一次，共用 texture source、使用 nearest-neighbor 取樣；個別 Sprite 銷毀時不得連帶銷毀共享 texture。
-- React 只渲染內部透明的通用槽框與 `equipment/backpack.png`，並透過第 7.2.2 節橋接回報目的矩形。飛抵槽位的裝備 Sprite 留在不攔截輸入的 Pixi HUD 裝備層並持續對齊該矩形，讓附著、飛行與已裝備 Ring 共用同一套卡形光圈；飛抵背包的 Sprite 則完成回收，不顯示未實作的背包內容。
-- 槽位分配、抵達啟用、背包無效狀態與回合清理都是 Pixi runtime 的單局真相，不逐幀同步到 Zustand 或送進 XState。React 槽框的顯示不得反向決定裝備效果。
+- React 渲染通用槽框、`equipment/backpack.png`、中央背包卡片清單與 tooltip，並透過第 7.2.2 節橋接回報目的矩形。飛抵槽位的裝備 Sprite 留在不攔截輸入的 Pixi HUD 裝備層並持續對齊，讓附著、飛行與已裝備 Ring 共用同一套卡形光圈；飛抵背包的 Sprite 完成回收後，React 依同一裝備 definition 組合卡圖與名稱。
+- 裝備核心以穩定 instance identity 保存取得序列與位置；槽位分配、換裝原子提交、抵達啟用、背包無效狀態與回合清理都是 runtime 的單局真相。只有實例完成收集、換裝成功或清理等離散變更才推送低頻快照給 Zustand／React，不逐幀同步。
+- React 只送出來源 `instanceId` 與目的地意圖，不計算排序以外的狀態轉移或裝備效果。pointer 拖曳與先選後放共用同一核心 command；非法／保留目的地在提交前拒絕，已占用目的地則由同一次提交把舊卡送回背包。背包卡內所有 DOM 圖片停用原生 drag，自訂拖曳掌握單一 pointer；只有合法目的地上的正常 `pointerup` 能提交，`pointercancel` 與失去追蹤只清除預覽及選取狀態。
 - Sword 在共用武器傷害計算入口疊加已裝備件數；效果卡原有傷害公式不因 Sword 被隱式放大。
 - Ring 只在共用武器准入入口確認手動點擊已實際造成傷害後增加玩家全域計數。觸發時快照最終武器傷害、目標 runtime identity、目標當下場地位置與 Ring 數量，建立不遞迴的序列佇列；目標仍可受擊時，各段繞過武器間隔但回到既有共用傷害／死亡／收益／Jackpot 入口。
 - 每段 Ring hit 視覺都在該段的 ticker 結算時點建立，以 config 向右上偏移並套用 Ring 專用 tint；目標仍可受擊時才在同一時點送出對應傷害。普通 hit 與 Ring hit 共用 AnimatedSprite／frame texture 與播放器；Ring 顏色在 config 保存為 CSS `#RRGGBB` 字串，只在建立效果時透過 Pixi `Color` 轉成 tint number，避免 filter／mask 額外 pass 及每幀顏色轉換。目標存在時使用當下位置；目標死亡、離場或不可受擊後，剩餘段數沿用快照位置依固定節奏產生視覺，不造成傷害或任何結算，也不得轉移目標。Jackpot 偽裝切換真身因沿用 runtime identity，待結算段數仍可命中真身。
@@ -460,7 +464,7 @@ Zustand 是記憶體中的應用狀態，不是存檔系統。載入、購買升
 - 計時、位移、反彈與動畫進度應可用指定 `deltaMS` 重複執行。
 - 效果卡與裝備共同候選／容量裁切、可見與隱藏裝備掉落、落雷目標選擇、隕石落點／錯開間隔、龍捲風方向／轉向與多次攻擊去重都使用可注入亂數；相同 seed 與場上狀態必須得到相同結果。
 - 稀有度光暈設定解析必須是可獨立測試的純資料映射：`N` 不產生光暈設定，`R`／`SR`／`SSR`／`UR` 只依 rarity 讀取正式 config；效果卡與裝備卡不得因內容 id 或卡框素材得到不同結果。
-- 裝備目的地原子保留、抵達啟用、背包無效狀態、拋射／落地／反彈進度、Sword 疊加、Ring 有效命中計數／快照／序列佇列、目標失效後的純視覺段數與回合收尾取消規則，都屬於不依賴 Pixi 顯示物件的可測試核心邏輯。
+- 裝備目的地原子保留、實例 identity、穩定排序、換裝／替換／卸下／互換、抵達啟用、背包無效狀態、拋射／落地／反彈進度、Sword 疊加、Ring 換裝邊界與序列佇列、暫停前後無補算及回合收尾取消規則，都屬於不依賴 Pixi 顯示物件的可測試核心邏輯。
 - 永久升級的價格／前置／最高級驗證、原子購買，以及由等級解析單局攻擊力、自動攻擊狀態／間隔與槽位數，都必須是可測試純資料邏輯；React、Pixi 與存檔不得各自重算。
 - 出售資格快照、依 id 分組、稀有度價格、乘算後小計、出售總額與最終總收益都必須是可測試核心邏輯；React 不計算單價或總額，測試不得把正式 config 數字另寫一份。
 - 落雷命中集合、縮放後的隕石場外起點與飛行進度、由爆炸實際顯示寬度及傷害範圍倍率推導的底部對齊命中集合、龍捲風階段／移動／碰撞／獨立傷害間隔、單次傷害、取消與連鎖佇列屬於可測試核心邏輯，不依賴 Pixi 顯示物件或真實時間。

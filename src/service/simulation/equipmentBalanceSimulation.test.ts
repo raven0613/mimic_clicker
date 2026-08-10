@@ -82,6 +82,29 @@ describe('equipment combat balance simulation', () => {
     expect(metrics.activationCount).toBe(0)
   })
 
+  it('applies the configured management policy after a backpack arrival', () => {
+    const metrics = simulateEquipmentCombatRound({
+      ordinaryMimics: [
+        createMimic(0, 0, { hiddenEquipmentId: 'sword' }),
+        createMimic(1, roundConfig.initialJackpotSpawnDelayMs * 2),
+      ],
+      shellMimicId: 'normal',
+      shellContent: noAttachedContent,
+      jackpotContent: noAttachedContent,
+      jackpotReward: mimicConfigs.normal.baseReward,
+      jackpotCase: 'notRevealed',
+      initialLoadout: ['ring'],
+      equipmentSlotCount: 1,
+      backpackManagementPolicy: 'swordPriority',
+      clickRate: balanceSimulationConfig.playerClickRatesPerSecond.fast,
+      accuracy: balanceSimulationConfig.accuracyRates.high,
+      random: () => 0,
+    })
+
+    expect(metrics.switchCount).toBe(1)
+    expect(metrics.swordAdditionalDamage).toBeGreaterThan(0)
+  })
+
   it('simulates permanent weapon damage without counting it as Sword damage', () => {
     const metrics = simulateEquipmentCombatRound({
       ordinaryMimics: [createMimic(0, 0)],

@@ -12,11 +12,16 @@ describe('game flow machine', () => {
 
     actor.send({ type: 'START_ROUND' })
     expect(actor.getSnapshot().value).toEqual({
-      playing: 'jackpotWaitingToAppear',
+      playing: {
+        gameplay: 'jackpotWaitingToAppear',
+        backpack: 'closed',
+      },
     })
 
     actor.send({ type: 'JACKPOT_RETURNED' })
-    expect(actor.getSnapshot().value).toEqual({ playing: 'jackpotDisguised' })
+    expect(actor.getSnapshot().value).toEqual({
+      playing: { gameplay: 'jackpotDisguised', backpack: 'closed' },
+    })
   })
 
   it('tracks the Jackpot chase as a discrete playing substate', () => {
@@ -26,10 +31,24 @@ describe('game flow machine', () => {
     actor.send({ type: 'JACKPOT_RETURNED' })
     actor.send({ type: 'JACKPOT_REVEALED' })
 
-    expect(actor.getSnapshot().value).toEqual({ playing: 'jackpotChasing' })
+    expect(actor.getSnapshot().value).toEqual({
+      playing: { gameplay: 'jackpotChasing', backpack: 'closed' },
+    })
+
+    actor.send({ type: 'OPEN_BACKPACK' })
+    expect(actor.getSnapshot().value).toEqual({
+      playing: { gameplay: 'jackpotChasing', backpack: 'open' },
+    })
 
     actor.send({ type: 'JACKPOT_RESOLVED' })
-    expect(actor.getSnapshot().value).toEqual({ playing: 'jackpotResolved' })
+    expect(actor.getSnapshot().value).toEqual({
+      playing: { gameplay: 'jackpotResolved', backpack: 'open' },
+    })
+
+    actor.send({ type: 'CLOSE_BACKPACK' })
+    expect(actor.getSnapshot().value).toEqual({
+      playing: { gameplay: 'jackpotResolved', backpack: 'closed' },
+    })
   })
 
   it('tracks a missed disguise while it waits to return', () => {
@@ -39,11 +58,16 @@ describe('game flow machine', () => {
     actor.send({ type: 'JACKPOT_RETURNED' })
     actor.send({ type: 'JACKPOT_LEFT_DISGUISED' })
     expect(actor.getSnapshot().value).toEqual({
-      playing: 'jackpotWaitingToReturn',
+      playing: {
+        gameplay: 'jackpotWaitingToReturn',
+        backpack: 'closed',
+      },
     })
 
     actor.send({ type: 'JACKPOT_RETURNED' })
-    expect(actor.getSnapshot().value).toEqual({ playing: 'jackpotDisguised' })
+    expect(actor.getSnapshot().value).toEqual({
+      playing: { gameplay: 'jackpotDisguised', backpack: 'closed' },
+    })
   })
 
   it('cannot show settlement until the completed result has been saved', () => {

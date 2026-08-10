@@ -6,12 +6,17 @@ import type { HudSnapshot } from '../../store/gameStore'
 import type { JackpotLifecycle } from '../combat/combat'
 import type { MimicCrackVisual } from './damage/mimicCrackVisual'
 import type {
+  EquipmentInventorySnapshot,
+  MoveEquipmentResult,
+} from './equipment/equipmentState'
+import type {
   AttachedCardAttachment,
   RuntimeAttachedCardFan,
 } from './attachedCards/attachedCardVisual'
 
 export interface RuntimeCallbacks {
   onHudSnapshot: (snapshot: HudSnapshot) => void
+  onEquipmentSnapshot: (snapshot: EquipmentInventorySnapshot) => void
   onJackpotDisguised: () => void
   onJackpotWaitingToReturn: () => void
   onJackpotRevealed: () => void
@@ -19,6 +24,10 @@ export interface RuntimeCallbacks {
   onRoundFinishing: () => void
   onRoundCompleted: (result: RoundResult) => void
 }
+
+export type RuntimeMoveEquipmentResult =
+  | MoveEquipmentResult
+  | { status: 'rejected'; reason: 'roundUnavailable' }
 
 export interface LoadedMimicTextures {
   normal: Texture

@@ -1,7 +1,8 @@
 import { useMachine } from '@xstate/react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 import './App.scss'
+import { backpackConfig } from './configs/backpackConfig'
 import { GameCanvas } from './components/game/GameCanvas'
 import { GameHud } from './components/hud/GameHud'
 import { MainMenu } from './components/overlay/MainMenu'
@@ -9,6 +10,7 @@ import { SettlementModal } from './components/overlay/SettlementModal'
 import { StatusOverlay } from './components/overlay/StatusOverlay'
 import { UnlockModal } from './components/overlay/UnlockModal'
 import { PixiGameRuntime } from './service/game/PixiGameRuntime'
+import type { MoveEquipmentCommand } from './service/game/equipment/equipmentState'
 import { acknowledgeUnlock, completeRound, getAvailableMimicIds } from './service/progression/progression'
 import {
   createPermanentUpgradeSnapshot,
@@ -43,9 +45,11 @@ function App() {
   const settlementWriteInProgress = useRef(false)
   const progress = useGameStore((state) => state.progress)
   const hud = useGameStore((state) => state.hud)
+  const equipment = useGameStore((state) => state.equipment)
   const latestRoundResult = useGameStore((state) => state.latestRoundResult)
   const hydrateProgress = useGameStore((state) => state.hydrateProgress)
   const updateHud = useGameStore((state) => state.updateHud)
+  const updateEquipment = useGameStore((state) => state.updateEquipment)
   const setLatestRoundResult = useGameStore((state) => state.setLatestRoundResult)
 
   useEffect(() => {
@@ -72,6 +76,16 @@ function App() {
       hasPendingUnlock: loadedProgress.pendingUnlockMimicIds.length > 0,
     })
   }, [hydrateProgress, loadedProgress, runtime, send])
+
+  const isBackpackOpen = flow.matches({
+    playing: { backpack: 'open' },
+  })
+
+  useLayoutEffect(() => {
+    runtime?.setGameplayPaused(
+      isBackpackOpen && backpackConfig.pauseGameWhileOpen,
+    )
+  }, [isBackpackOpen, runtime])
 
   useEffect(() => {
     if (
@@ -145,6 +159,10 @@ function App() {
       runtime?.setEquipmentCollectionTargets(targets),
     [runtime],
   )
+  const handleMoveEquipment = useCallback(
+    (command: MoveEquipmentCommand) => runtime?.moveEquipment(command),
+    [runtime],
+  )
 
   async function acknowledgeCurrentUnlock() {
     const mimicId = progress.pendingUnlockMimicIds[0]
@@ -211,7 +229,13 @@ function App() {
   }
 
   return (
-    <main className={`game-shell${postRoundOverlay ? ' game-shell--blurred' : ''}`}>
+    <main
+      className={`game-shell${postRoundOverlay ? ' game-shell--blurred' : ''}${
+        isBackpackOpen && backpackConfig.pauseGameWhileOpen
+          ? ' game-shell--gameplay-paused'
+          : ''
+      }`}
+    >
       <GameCanvas
         onReady={setRuntime}
         onInitializationError={(error) =>
@@ -221,6 +245,7 @@ function App() {
           }
         }
         onHudSnapshot={updateHud}
+        onEquipmentSnapshot={updateEquipment}
         onJackpotDisguised={() => send({ type: 'JACKPOT_RETURNED' })}
         onJackpotWaitingToReturn={() =>
           send({ type: 'JACKPOT_LEFT_DISGUISED' })
@@ -234,7 +259,15 @@ function App() {
       {flow.matches('playing') && roundUpgrades && (
         <GameHud
           hud={hud}
-          equipmentSlotCount={roundUpgrades.equipmentSlotCount}
+          equipment={equipment}
+          isBackpackOpen={isBackpackOpen}
+          onToggleBackpack={() =>
+            send({
+              type: isBackpackOpen ? 'CLOSE_BACKPACK' : 'OPEN_BACKPACK',
+            })
+          }
+          onCloseBackpack={() => send({ type: 'CLOSE_BACKPACK' })}
+          onMoveEquipment={handleMoveEquipment}
           onGoldTargetChange={handleGoldTargetChange}
           onEquipmentTargetsChange={handleEquipmentTargetsChange}
         />

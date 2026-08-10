@@ -21,6 +21,8 @@ export function GameCanvas(props: GameCanvasProps) {
 
     const runtime = new PixiGameRuntime(hostRef.current, {
       onHudSnapshot: (snapshot) => propsRef.current.onHudSnapshot(snapshot),
+      onEquipmentSnapshot: (snapshot) =>
+        propsRef.current.onEquipmentSnapshot(snapshot),
       onJackpotDisguised: () => propsRef.current.onJackpotDisguised(),
       onJackpotWaitingToReturn: () =>
         propsRef.current.onJackpotWaitingToReturn(),

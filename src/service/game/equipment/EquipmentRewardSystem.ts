@@ -21,6 +21,9 @@ import { selectVisibleEquipmentDrops } from './equipmentDropRules'
 import {
   EquipmentState,
   type AcceptedManualHit,
+  type EquipmentInventorySnapshot,
+  type MoveEquipmentCommand,
+  type MoveEquipmentResult,
   type EquipmentReservation,
   type RingStrike,
 } from './equipmentState'
@@ -65,6 +68,7 @@ interface FailedEquipmentDrop extends EquipmentVisual {
 }
 
 interface EquippedEquipmentVisual extends EquipmentVisual {
+  instanceId: number
   slotIndex: number
 }
 
@@ -82,6 +86,7 @@ export class EquipmentRewardSystem {
   private readonly host: HTMLElement
   private readonly textures: LoadedAttachedCardTextures
   private readonly random: RandomSource
+  private readonly onInventoryChanged: (snapshot: EquipmentInventorySnapshot) => void
   private collectionTargets: EquipmentCollectionTargets = {
     slotTargets: [],
     backpackTarget: null,
@@ -93,10 +98,12 @@ export class EquipmentRewardSystem {
     host: HTMLElement,
     textures: LoadedAttachedCardTextures,
     random: RandomSource,
+    onInventoryChanged: (snapshot: EquipmentInventorySnapshot) => void = () => undefined,
   ) {
     this.host = host
     this.textures = textures
     this.random = random
+    this.onInventoryChanged = onInventoryChanged
     stage.addChild(this.haloLayer, this.cardLayer)
   }
 
@@ -126,6 +133,7 @@ export class EquipmentRewardSystem {
   public startRound(slotCount: number): void {
     this.clear()
     this.state = new EquipmentState(slotCount)
+    this.emitInventorySnapshot()
   }
 
   public resolveDrops(input: ResolveEquipmentDropsInput): void {
@@ -155,6 +163,7 @@ export class EquipmentRewardSystem {
         rarity: this.getRarity(id),
       })),
     )
+    this.emitInventorySnapshot()
 
     for (let index = 0; index < successfulAttachments.length; index += 1) {
       const attachment = successfulAttachments[index]
@@ -204,6 +213,14 @@ export class EquipmentRewardSystem {
     return this.state.getSettlementEquipmentSnapshot()
   }
 
+  public moveEquipment(command: MoveEquipmentCommand): MoveEquipmentResult {
+    const result = this.state.moveEquipment(command)
+    if (result.status === 'rejected') return result
+    this.syncEquippedVisuals()
+    this.emitInventorySnapshot()
+    return result
+  }
+
   public recordAcceptedManualHit(hit: AcceptedManualHit): void {
     this.state.recordAcceptedManualHit(hit)
   }
@@ -238,6 +255,7 @@ export class EquipmentRewardSystem {
     this.equippedVisuals.length = 0
     this.haloElapsedMs = 0
     this.state.clear()
+    this.emitInventorySnapshot()
   }
 
   public destroy(): void {
@@ -330,6 +348,7 @@ export class EquipmentRewardSystem {
     this.state.completeReservation(reward.reservation.reservationId)
     if (reward.reservation.destination.type === 'backpack') {
       this.destroyAttachment(reward.attachment)
+      this.emitInventorySnapshot()
       return
     }
     this.applyTransform(
@@ -341,23 +360,70 @@ export class EquipmentRewardSystem {
     )
     this.equippedVisuals.push({
       attachment: reward.attachment,
+      instanceId: reward.reservation.instanceId,
       slotIndex: reward.reservation.destination.slotIndex,
       x: target.x,
       y: target.y,
       rotation: 0,
       scale: animationConfig.equipmentReward.endingScale,
     })
+    this.emitInventorySnapshot()
   }
 
   private updateEquippedVisuals(): void {
     for (const visual of this.equippedVisuals) {
       updateAttachedCardHalo(visual.attachment, this.haloElapsedMs)
       const target = this.collectionTargets.slotTargets[visual.slotIndex]
+      const targetAvailable = target !== null && target !== undefined
+      visual.attachment.halo.visible = targetAvailable
+      visual.attachment.container.visible = targetAvailable
       if (!target) continue
       visual.x = target.x
       visual.y = target.y
       this.applyTransform(visual, target.x, target.y, 0, visual.scale)
     }
+  }
+
+  private syncEquippedVisuals(): void {
+    const snapshot = this.state.getInventorySnapshot()
+    const equippedSlots = new Map<number, number>()
+    snapshot.slots.forEach((slot, slotIndex) => {
+      if (slot.status === 'equipped') equippedSlots.set(slot.instance.instanceId, slotIndex)
+    })
+
+    for (let index = this.equippedVisuals.length - 1; index >= 0; index -= 1) {
+      const visual = this.equippedVisuals[index]
+      const slotIndex = equippedSlots.get(visual.instanceId)
+      if (slotIndex === undefined) {
+        this.equippedVisuals.splice(index, 1)
+        this.destroyAttachment(visual.attachment)
+      } else {
+        visual.slotIndex = slotIndex
+        equippedSlots.delete(visual.instanceId)
+      }
+    }
+
+    for (const [instanceId, slotIndex] of equippedSlots) {
+      const slot = snapshot.slots[slotIndex]
+      if (slot.status !== 'equipped') continue
+      const attachment = createEquipmentCardAttachment(slot.instance.id, this.textures)
+      const target = this.collectionTargets.slotTargets[slotIndex] ?? { x: 0, y: 0 }
+      this.addAttachmentAt(attachment, target)
+      this.equippedVisuals.push({
+        attachment,
+        instanceId,
+        slotIndex,
+        x: attachment.container.x,
+        y: attachment.container.y,
+        rotation: 0,
+        scale: animationConfig.equipmentReward.endingScale,
+      })
+    }
+    this.updateEquippedVisuals()
+  }
+
+  private emitInventorySnapshot(): void {
+    this.onInventoryChanged(this.state.getInventorySnapshot())
   }
 
   private getReservationTarget(

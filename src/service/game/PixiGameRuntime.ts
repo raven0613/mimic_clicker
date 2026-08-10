@@ -16,15 +16,16 @@ import { applyRuntimeMimicDamage } from './damage/runtimeMimicDamage'
 import { RuntimeWeaponAttackSystem } from './damage/RuntimeWeaponAttackSystem'
 import { RuntimeClearRefillSystem } from './clearRefill/RuntimeClearRefillSystem'
 import { resolveRuntimeRingStrikes } from './equipment/runtimeRingStrikes'
+import type { MoveEquipmentCommand } from './equipment/equipmentState'
 import { addRuntimeDeathEffect } from './effects/runtimeDeathEffect'
 import { revealRuntimeJackpot } from './jackpot/revealRuntimeJackpot'
 import { updateRuntimeJackpot } from './jackpot/updateRuntimeJackpot'
 import { RuntimeMimicSpawner } from './runtimeMimicSpawn'
 import { updateRuntimeEntityVisual } from './runtimeMovement'
 import { RuntimeEffectSystems } from './RuntimeEffectSystems'
-import type { LoadedMimicTextures, RuntimeCallbacks, RuntimeMimicEntity } from './runtimeTypes'
+import type { LoadedMimicTextures, RuntimeCallbacks, RuntimeMimicEntity, RuntimeMoveEquipmentResult } from './runtimeTypes'
+import { shouldAdvanceRuntime, type RuntimeUpdateMode } from './runtimeUpdateGate'
 
-type RuntimeMode = 'idle' | 'active' | 'decorative'
 type RuntimeDamageSource = 'automatic' | 'manualWeapon'
 export class PixiGameRuntime {
   private readonly host: HTMLElement
@@ -40,7 +41,8 @@ export class PixiGameRuntime {
   private effectSystems: RuntimeEffectSystems | null = null
   private clearRefillSystem: RuntimeClearRefillSystem | null = null
   private readonly weaponAttacks: RuntimeWeaponAttackSystem
-  private mode: RuntimeMode = 'idle'
+  private mode: RuntimeUpdateMode = 'idle'
+  private gameplayPaused = false
   private mimicPool: MimicId[] = ['normal']
   private mainRemainingMs = 0
   private roundElapsedMs = 0
@@ -69,13 +71,8 @@ export class PixiGameRuntime {
       getEntities: () => this.entities,
       getEquipment: () => this.effectSystems?.equipment ?? null,
       damageTarget: (entity, damage, source) =>
-        this.damageEntity(
-          entity,
-          damage,
-          source === 'manual' ? 'manualWeapon' : 'automatic',
-        ),
-      addManualHitEffect: (position) =>
-        this.effectSystems?.addManualHit(position),
+        this.damageEntity(entity, damage, source === 'manual' ? 'manualWeapon' : 'automatic'),
+      addManualHitEffect: (position) => this.effectSystems?.addManualHit(position),
     })
   }
 
@@ -98,18 +95,13 @@ export class PixiGameRuntime {
     this.textures = assets.mimics
     this.attachedCardTextures = assets.attachedCards
     this.mimicSpawner = new RuntimeMimicSpawner({
-      getFieldSize: () => ({
-        x: this.app.screen.width,
-        y: this.app.screen.height,
-      }),
+      getFieldSize: () => ({ x: this.app.screen.width, y: this.app.screen.height }),
       getEntities: () => this.entities,
       mimicTextures: assets.mimics,
       attachedCardTextures: assets.attachedCards,
       random: this.random,
-      onAttack: (entity, position) =>
-        this.weaponAttacks.attackManual(entity, position),
-      onHoverChanged: (entity, hovered) =>
-        this.weaponAttacks.setHovered(entity, hovered),
+      onAttack: (entity, position) => this.weaponAttacks.attackManual(entity, position),
+      onHoverChanged: (entity, hovered) => this.weaponAttacks.setHovered(entity, hovered),
       onSpawn: (entity) => {
         this.entities.push(entity)
         this.fieldLayer.addChild(entity.container)
@@ -120,30 +112,23 @@ export class PixiGameRuntime {
       host: this.host,
       assets,
       random: this.random,
-      getFieldSize: () => ({
-        width: this.app.screen.width,
-        height: this.app.screen.height,
-      }),
+      getFieldSize: () => ({ width: this.app.screen.width, height: this.app.screen.height }),
       getTargets: () => this.entities,
-      damageTarget: (entity, damage) =>
-        this.damageEntity(entity, damage, 'automatic'),
+      damageTarget: (entity, damage) => this.damageEntity(entity, damage, 'automatic'),
       onRewardPresented: (reward) => {
         this.presentedRoundGold += reward
         this.emitHudSnapshot()
       },
+      onEquipmentSnapshot: (snapshot) => this.callbacks.onEquipmentSnapshot(snapshot),
     })
     this.clearRefillSystem = new RuntimeClearRefillSystem({
       getEntities: () => this.entities,
-      getFieldSize: () => ({
-        width: this.app.screen.width,
-        height: this.app.screen.height,
-      }),
+      getFieldSize: () => ({ width: this.app.screen.width, height: this.app.screen.height }),
       getRoundState: () => ({
         isRoundActive: this.mode === 'active' && !this.roundEnding,
         remainingRoundMs: this.mainRemainingMs,
       }),
-      hasActiveEffectChain: () =>
-        this.effectSystems?.hasActiveEffectCardChain() ?? false,
+      hasActiveEffectChain: () => this.effectSystems?.hasActiveEffectCardChain() ?? false,
       refill: () => {
         this.trySpawnJackpotDisguise()
         this.mimicSpawner?.fillField(this.mimicPool, 'clearRefill')
@@ -153,14 +138,12 @@ export class PixiGameRuntime {
     this.app.ticker.add(this.update)
   }
 
-  public startRound(
-    mimicPool: MimicId[],
-    upgrades: PermanentUpgradeSnapshot,
-  ): void {
+  public startRound(mimicPool: MimicId[], upgrades: PermanentUpgradeSnapshot): void {
     if (!this.textures || !this.attachedCardTextures || !this.mimicSpawner) {
       throw new Error('Cannot start a round before PixiJS assets are loaded')
     }
     this.clearScene()
+    this.gameplayPaused = false
     this.weaponAttacks.startRound(upgrades)
     this.effectSystems?.equipment.startRound(upgrades.equipmentSlotCount)
     this.mimicPool = [...mimicPool]
@@ -186,7 +169,22 @@ export class PixiGameRuntime {
   }
   public resetToIdle(): void {
     this.mode = 'idle'
+    this.gameplayPaused = false
     this.clearScene()
+  }
+  public setGameplayPaused(paused: boolean): void {
+    this.gameplayPaused = paused && this.mode === 'active' && !this.roundEnding
+  }
+  public moveEquipment(command: MoveEquipmentCommand): RuntimeMoveEquipmentResult {
+    if (this.mode !== 'active' || this.roundEnding) {
+      return { status: 'rejected', reason: 'roundUnavailable' }
+    }
+    return (
+      this.effectSystems?.equipment.moveEquipment(command) ?? {
+        status: 'rejected',
+        reason: 'roundUnavailable',
+      }
+    )
   }
   public setRewardCollectionTarget(target: { x: number; y: number } | null): void {
     this.effectSystems?.setRewardCollectionTarget(target, {
@@ -218,9 +216,8 @@ export class PixiGameRuntime {
 
   private readonly update = (ticker: Ticker): void => {
     const deltaMs = Math.min(ticker.deltaMS, combatConfig.maximumFrameDeltaMs)
+    if (!shouldAdvanceRuntime(this.mode, this.gameplayPaused)) return
     this.effectSystems?.updatePersistent(deltaMs)
-
-    if (this.mode === 'idle') return
 
     if (this.mode === 'active') {
       this.updateActiveRound(deltaMs)
@@ -348,7 +345,9 @@ export class PixiGameRuntime {
     damage: number,
     source: RuntimeDamageSource,
   ): boolean {
-    if (this.mode !== 'active' || this.roundEnding) return false
+    if (this.mode !== 'active' || this.roundEnding || this.gameplayPaused) {
+      return false
+    }
     if (!this.entities.includes(entity)) return false
     if (entity.health === null || entity.maximumHealth === null) return false
     if (
@@ -422,6 +421,7 @@ export class PixiGameRuntime {
   }
   private beginRoundEnding(): void {
     this.roundEnding = true
+    this.gameplayPaused = false
     this.roundEquipmentSale = calculateEquipmentSale(
       this.effectSystems?.equipment.getSettlementEquipmentSnapshot() ?? [],
     )

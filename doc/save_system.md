@@ -9,7 +9,7 @@
 - Zustand 只保存已載入的記憶體狀態，不得直接兼任 IndexedDB adapter。
 - React UI 不直接呼叫 IndexedDB；應透過存檔 service 的明確介面操作。
 - Pixi runtime 不讀寫永久進度。
-- 不使用 `localStorage` 保存正式遊戲進度。
+- 不使用 `localStorage` 保存正式遊戲進度。唯一允許的例外是像背包排序模式這類不影響遊戲結果的 UI 偏好；這類偏好不得混入進度模型。
 
 ## 2. 存檔資料範圍
 
@@ -30,6 +30,7 @@
 - 尚未完成單局的即時戰鬥狀態。
 - React 對話框或 Pixi 顯示物件。
 - 由永久等級與 config 推導的實際主武器攻擊力、自動攻擊毫秒數或裝備槽數。
+- 背包排序模式；它只保存於目前瀏覽器的 `localStorage`，不納入 IndexedDB、匯出碼、匯入結果或 Reset。
 
 ## 3. Schema 與版本
 

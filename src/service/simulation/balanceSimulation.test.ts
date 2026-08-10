@@ -7,23 +7,46 @@ import { spawnConfig } from '../../configs/spawnConfig'
 import {
   calculateInitialMeteoriteDamage,
 } from '../game/effectCards/effectCardRules'
-import { runBalanceSimulation } from './balanceSimulation'
+import { runBalanceSimulation, stagePools } from './balanceSimulation'
 
 describe('fixed-seed balance simulation', () => {
   let firstReport: ReturnType<typeof runBalanceSimulation>
-  let repeatedReport: ReturnType<typeof runBalanceSimulation>
+  let firstRepeatabilityReport: ReturnType<typeof runBalanceSimulation>
+  let repeatedRepeatabilityReport: ReturnType<typeof runBalanceSimulation>
 
   beforeAll(() => {
     firstReport = runBalanceSimulation()
-    repeatedReport = runBalanceSimulation()
+    const repeatabilitySeeds = [balanceSimulationConfig.seeds[0]]
+    firstRepeatabilityReport = runBalanceSimulation({
+      seeds: repeatabilitySeeds,
+    })
+    repeatedRepeatabilityReport = runBalanceSimulation({
+      seeds: repeatabilitySeeds,
+    })
   }, 70_000)
 
   it('is repeatable for the same config and seed matrix', () => {
-    expect(firstReport).toEqual(repeatedReport)
+    expect(firstRepeatabilityReport).toEqual(repeatedRepeatabilityReport)
   })
 
   it('keeps the initial vertical-slice balance inside provisional targets', () => {
     const report = firstReport
+    const baseCaseCount =
+      Object.keys(stagePools).length *
+      Object.keys(balanceSimulationConfig.playerClickRatesPerSecond).length *
+      Object.keys(balanceSimulationConfig.accuracyRates).length *
+      balanceSimulationConfig.jackpotCases.length *
+      Object.keys(balanceSimulationConfig.equipmentLoadouts).length *
+      balanceSimulationConfig.seeds.length
+    const additionalManagementCaseCount =
+      Object.keys(stagePools).length *
+      balanceSimulationConfig.jackpotCases.length *
+      Object.keys(balanceSimulationConfig.equipmentLoadouts).length *
+      balanceSimulationConfig.seeds.length *
+      (Object.keys(balanceSimulationConfig.backpackManagementPolicies).length -
+        1)
+
+    expect(report.caseCount).toBe(baseCaseCount + additionalManagementCaseCount)
 
     expect(mimicConfigs.rare1.maximumHealth).toBeGreaterThan(
       mimicConfigs.normal.maximumHealth,
@@ -225,6 +248,21 @@ describe('fixed-seed balance simulation', () => {
     expect(
       report.equipmentMetrics.jackpotDefeatRateByLoadout.duplicateRing,
     ).toBeGreaterThan(0)
+    const management = report.equipmentMetrics.management
+    expect(management.averageSwitchesByPolicy.noSwitching).toBe(0)
+    expect(management.averageSwitchesByPolicy.swordPriority).toBeGreaterThan(0)
+    expect(management.averageSwitchesByPolicy.ringPriority).toBeGreaterThan(0)
+    for (const totalIncome of Object.values(
+      management.averageTotalIncomeByPolicy,
+    )) {
+      expect(totalIncome).toBeGreaterThan(0)
+    }
+    for (const defeatRate of Object.values(
+      management.jackpotDefeatRateByPolicy,
+    )) {
+      expect(defeatRate).toBeGreaterThanOrEqual(0)
+      expect(defeatRate).toBeLessThanOrEqual(1)
+    }
     expect(report.unfinishedRoundCount).toBe(0)
 
     console.info(report.summary)

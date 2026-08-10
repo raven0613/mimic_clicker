@@ -39,7 +39,7 @@ describe('equipment state', () => {
     expect(state.getEquippedCount('ring')).toBe(0)
   })
 
-  it('activates only completed slot reservations and keeps backpack inactive', () => {
+  it('activates only completed slot reservations and keeps stored effects inactive', () => {
     const state = new EquipmentState()
     const [sword, ring, storedSword] = state.reserveDrops([
       { id: 'sword', rarity: 'N' },
@@ -53,7 +53,9 @@ describe('equipment state', () => {
 
     expect(state.getEquippedCount('sword')).toBe(1)
     expect(state.getEquippedCount('ring')).toBe(1)
-    expect(state.getStoredEquipment()).toEqual(['sword'])
+    expect(state.getInventorySnapshot().stored.map(({ id }) => id)).toEqual([
+      'sword',
+    ])
     expect(state.calculateWeaponDamage(combatConfig.initialWeaponDamage)).toBe(
       combatConfig.initialWeaponDamage + equipmentConfig.sword.weaponDamageBonus,
     )
@@ -206,17 +208,180 @@ describe('equipment state', () => {
     queueRingBatch(state, 3)
     state.clear()
     expect(state.getEquippedCount('ring')).toBe(0)
-    expect(state.getStoredEquipment()).toEqual([])
+    expect(state.getInventorySnapshot().stored).toEqual([])
     expect(
       state.advanceRingQueue(equipmentConfig.ring.additionalHitIntervalMs),
     ).toEqual([])
   })
+
+  it('atomically replaces an occupied slot and preserves instance acquisition order', () => {
+    const state = new EquipmentState(1)
+    const [equippedRing] = state.reserveDrops([{ id: 'ring', rarity: 'SR' }])
+    state.completeReservation(equippedRing.reservationId)
+    const [storedSword] = state.reserveDrops([{ id: 'sword', rarity: 'N' }])
+    state.completeReservation(storedSword.reservationId)
+
+    expect(
+      state.moveEquipment({
+        instanceId: storedSword.instanceId,
+        destination: { type: 'slot', slotIndex: 0 },
+      }),
+    ).toEqual({ status: 'moved' })
+
+    const snapshot = state.getInventorySnapshot()
+    expect(snapshot.slots[0]).toMatchObject({
+      status: 'equipped',
+      instance: { instanceId: storedSword.instanceId, id: 'sword' },
+    })
+    expect(snapshot.stored).toEqual([
+      expect.objectContaining({
+        instanceId: equippedRing.instanceId,
+        acquiredSequence: equippedRing.acquiredSequence,
+      }),
+    ])
+    expect(state.getSettlementEquipmentSnapshot()).toEqual(['sword', 'ring'])
+  })
+
+  it('moves equipped instances between slots and back to the backpack', () => {
+    const state = new EquipmentState(2)
+    const [sword, ring] = state.reserveDrops([
+      { id: 'sword', rarity: 'N' },
+      { id: 'ring', rarity: 'SR' },
+    ])
+    state.completeReservation(sword.reservationId)
+    state.completeReservation(ring.reservationId)
+
+    expect(
+      state.moveEquipment({
+        instanceId: sword.instanceId,
+        destination: { type: 'slot', slotIndex: 0 },
+      }),
+    ).toEqual({ status: 'moved' })
+    expect(state.getInventorySnapshot().slots).toEqual([
+      expect.objectContaining({
+        status: 'equipped',
+        instance: expect.objectContaining({ instanceId: sword.instanceId }),
+      }),
+      expect.objectContaining({
+        status: 'equipped',
+        instance: expect.objectContaining({ instanceId: ring.instanceId }),
+      }),
+    ])
+
+    expect(
+      state.moveEquipment({
+        instanceId: sword.instanceId,
+        destination: { type: 'backpack' },
+      }),
+    ).toEqual({ status: 'moved' })
+    expect(state.getInventorySnapshot().stored).toEqual([
+      expect.objectContaining({ instanceId: sword.instanceId }),
+    ])
+  })
+
+  it('rejects a reserved destination without partially changing equipment', () => {
+    const state = new EquipmentState(2)
+    const [reservedRing] = state.reserveDrops([{ id: 'ring', rarity: 'SR' }])
+    const [equippedSword] = state.reserveDrops([{ id: 'sword', rarity: 'N' }])
+    state.completeReservation(equippedSword.reservationId)
+    const before = state.getInventorySnapshot()
+
+    expect(
+      state.moveEquipment({
+        instanceId: equippedSword.instanceId,
+        destination: {
+          type: 'slot',
+          slotIndex:
+            reservedRing.destination.type === 'slot'
+              ? reservedRing.destination.slotIndex
+              : -1,
+        },
+      }),
+    ).toEqual({ status: 'rejected', reason: 'destinationReserved' })
+    expect(state.getInventorySnapshot()).toEqual(before)
+  })
+
+  it('resets partial Ring progress only after the final equipped Ring is removed', () => {
+    const state = new EquipmentState(2)
+    const [firstRing, secondRing] = state.reserveDrops([
+      { id: 'ring', rarity: 'SR' },
+      { id: 'ring', rarity: 'SR' },
+    ])
+    state.completeReservation(firstRing.reservationId)
+    state.completeReservation(secondRing.reservationId)
+    recordRingHits(
+      state,
+      equipmentConfig.ring.acceptedManualHitsPerTrigger - 1,
+      11,
+    )
+
+    state.moveEquipment({
+      instanceId: firstRing.instanceId,
+      destination: { type: 'backpack' },
+    })
+    recordRingHits(state, 1, 11)
+    expect(
+      state.advanceRingQueue(equipmentConfig.ring.additionalHitIntervalMs),
+    ).toHaveLength(1)
+
+    state.moveEquipment({
+      instanceId: secondRing.instanceId,
+      destination: { type: 'backpack' },
+    })
+    state.moveEquipment({
+      instanceId: firstRing.instanceId,
+      destination: { type: 'slot', slotIndex: 0 },
+    })
+    recordRingHits(state, 1, 12)
+    expect(
+      state.advanceRingQueue(equipmentConfig.ring.additionalHitIntervalMs),
+    ).toEqual([])
+  })
+
+  it('keeps queued Ring strikes unchanged when the equipped Rings change', () => {
+    const state = new EquipmentState(2)
+    const [firstRing, secondRing] = state.reserveDrops([
+      { id: 'ring', rarity: 'SR' },
+      { id: 'ring', rarity: 'SR' },
+    ])
+    state.completeReservation(firstRing.reservationId)
+    state.completeReservation(secondRing.reservationId)
+    queueRingBatch(state, 13)
+
+    state.moveEquipment({
+      instanceId: firstRing.instanceId,
+      destination: { type: 'backpack' },
+    })
+    state.moveEquipment({
+      instanceId: secondRing.instanceId,
+      destination: { type: 'backpack' },
+    })
+
+    expect(
+      state.advanceRingQueue(equipmentConfig.ring.additionalHitIntervalMs),
+    ).toHaveLength(1)
+    expect(
+      state.advanceRingQueue(equipmentConfig.ring.additionalHitIntervalMs),
+    ).toHaveLength(1)
+  })
 })
 
 function queueRingBatch(state: EquipmentState, targetId: number): void {
+  recordRingHits(
+    state,
+    equipmentConfig.ring.acceptedManualHitsPerTrigger,
+    targetId,
+  )
+}
+
+function recordRingHits(
+  state: EquipmentState,
+  count: number,
+  targetId: number,
+): void {
   for (
     let hitIndex = 0;
-    hitIndex < equipmentConfig.ring.acceptedManualHitsPerTrigger;
+    hitIndex < count;
     hitIndex += 1
   ) {
     state.recordAcceptedManualHit({

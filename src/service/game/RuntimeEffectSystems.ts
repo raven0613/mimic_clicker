@@ -16,6 +16,7 @@ import { EffectCardSystem } from './effectCards/EffectCardSystem'
 import { EquipmentRewardSystem } from './equipment/EquipmentRewardSystem'
 import { ClearFeedbackSystem } from './clearRefill/ClearFeedbackSystem'
 import type { RuntimeMimicEntity } from './runtimeTypes'
+import type { EquipmentInventorySnapshot } from './equipment/equipmentState'
 
 interface RuntimeEffectSystemsInput {
   stage: Container
@@ -26,6 +27,7 @@ interface RuntimeEffectSystemsInput {
   getTargets: () => readonly RuntimeMimicEntity[]
   damageTarget: (entity: RuntimeMimicEntity, damage: number) => void
   onRewardPresented: (reward: number) => void
+  onEquipmentSnapshot: (snapshot: EquipmentInventorySnapshot) => void
 }
 
 export class RuntimeEffectSystems {
@@ -43,6 +45,7 @@ export class RuntimeEffectSystems {
       input.host,
       input.assets.attachedCards,
       input.random,
+      input.onEquipmentSnapshot,
     )
     this.death = new DeathEffectSystem(
       input.stage,

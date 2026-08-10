@@ -21,6 +21,10 @@ import {
 import type { SimulatedAttachedContent } from './attachedCardSimulation'
 import { simulateCoinCollectionCompletionMs } from './coinRewardTimingSimulation'
 import { simulateEquipmentSettlingCompletionMs } from './equipmentRewardTimingSimulation'
+import {
+  applyEquipmentManagementPolicy,
+  type BackpackManagementPolicyKey,
+} from './equipmentManagementPolicy'
 import { createWeaponAttackSchedule } from './weaponAttackSimulation'
 
 export type EquipmentCounts = Record<EquipmentId, number>
@@ -38,6 +42,7 @@ export interface RoundEquipmentMetrics {
   successfulDrops: EquipmentCounts
   equipped: EquipmentCounts
   backpack: EquipmentCounts
+  switchCount: number
   activationTimeTotalMs: number
   activationCount: number
   thirdSlotActivationTimeTotalMs: number
@@ -63,6 +68,7 @@ interface SimulateEquipmentCombatRoundInput {
   jackpotReward: number
   jackpotCase: JackpotOutcome
   initialLoadout: readonly EquipmentId[]
+  backpackManagementPolicy?: BackpackManagementPolicyKey
   baseWeaponDamage?: number
   automaticAttackIntervalMs?: number | null
   equipmentSlotCount?: number
@@ -255,6 +261,10 @@ export function simulateEquipmentCombatRound(
             metrics.thirdSlotActivationCount += 1
           }
         }
+        metrics.switchCount += applyEquipmentManagementPolicy(
+          state,
+          input.backpackManagementPolicy ?? 'noSwitching',
+        )
         continue
       }
       const target = findTargetByRuntimeId(
@@ -430,6 +440,7 @@ function createEmptyMetrics(): RoundEquipmentMetrics {
     successfulDrops: emptyCounts(),
     equipped: emptyCounts(),
     backpack: emptyCounts(),
+    switchCount: 0,
     activationTimeTotalMs: 0,
     activationCount: 0,
     thirdSlotActivationTimeTotalMs: 0,

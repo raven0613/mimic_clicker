@@ -9,6 +9,8 @@ type GameFlowEvent =
   | { type: 'BOOT_SUCCEEDED'; hasPendingUnlock: boolean }
   | { type: 'BOOT_FAILED'; errorMessage: string }
   | { type: 'START_ROUND' }
+  | { type: 'OPEN_BACKPACK' }
+  | { type: 'CLOSE_BACKPACK' }
   | { type: 'JACKPOT_LEFT_DISGUISED' }
   | { type: 'JACKPOT_RETURNED' }
   | { type: 'JACKPOT_REVEALED' }
@@ -98,24 +100,36 @@ export const gameFlowMachine = setup({
       },
     },
     playing: {
-      initial: 'jackpotWaitingToAppear',
+      type: 'parallel',
       states: {
-        jackpotWaitingToAppear: {
-          on: { JACKPOT_RETURNED: 'jackpotDisguised' },
-        },
-        jackpotDisguised: {
-          on: {
-            JACKPOT_LEFT_DISGUISED: 'jackpotWaitingToReturn',
-            JACKPOT_REVEALED: 'jackpotChasing',
+        gameplay: {
+          initial: 'jackpotWaitingToAppear',
+          states: {
+            jackpotWaitingToAppear: {
+              on: { JACKPOT_RETURNED: 'jackpotDisguised' },
+            },
+            jackpotDisguised: {
+              on: {
+                JACKPOT_LEFT_DISGUISED: 'jackpotWaitingToReturn',
+                JACKPOT_REVEALED: 'jackpotChasing',
+              },
+            },
+            jackpotWaitingToReturn: {
+              on: { JACKPOT_RETURNED: 'jackpotDisguised' },
+            },
+            jackpotChasing: {
+              on: { JACKPOT_RESOLVED: 'jackpotResolved' },
+            },
+            jackpotResolved: {},
           },
         },
-        jackpotWaitingToReturn: {
-          on: { JACKPOT_RETURNED: 'jackpotDisguised' },
+        backpack: {
+          initial: 'closed',
+          states: {
+            closed: { on: { OPEN_BACKPACK: 'open' } },
+            open: { on: { CLOSE_BACKPACK: 'closed' } },
+          },
         },
-        jackpotChasing: {
-          on: { JACKPOT_RESOLVED: 'jackpotResolved' },
-        },
-        jackpotResolved: {},
       },
       on: { ROUND_TIMER_EXPIRED: 'finishingRound' },
     },

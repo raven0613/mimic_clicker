@@ -2,7 +2,7 @@ import type { EquipmentId } from './equipmentConfig'
 import type { PermanentUpgradeLevels } from '../types/game'
 
 export const balanceSimulationConfig = {
-  configVersion: 'permanent-upgrades-v15',
+  configVersion: 'backpack-management-v16',
   seeds: [11, 29, 47, 83, 131, 197, 263, 347, 431, 557, 683, 809],
   field: {
     widthPixels: 1_280,
@@ -32,6 +32,14 @@ export const balanceSimulationConfig = {
     duplicateRing: ['ring', 'ring'],
     swordAndRing: ['sword', 'ring'],
   } satisfies Record<string, readonly EquipmentId[]>,
+  backpackManagementPolicies: {
+    noSwitching: { prioritizedEquipmentIds: [] },
+    swordPriority: { prioritizedEquipmentIds: ['sword', 'ring'] },
+    ringPriority: { prioritizedEquipmentIds: ['ring', 'sword'] },
+  } satisfies Record<
+    string,
+    { prioritizedEquipmentIds: readonly EquipmentId[] }
+  >,
   permanentUpgradeProfiles: {
     allZero: {
       levels: levels(0, 0, 0, 0),

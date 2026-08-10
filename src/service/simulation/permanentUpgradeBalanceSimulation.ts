@@ -10,7 +10,11 @@ import {
 import { calculateEquipmentSale } from '../settlement/equipmentSale'
 import { selectWeightedMimicId } from '../spawn/spawn'
 import { selectSimulatedAttachedContent, selectSimulatedJackpotAttachedContent } from './attachedCardSimulation'
-import { runBalanceSimulation, stagePools, type StageKey } from './balanceSimulation'
+import {
+  runEconomyBaselineStageIncome,
+  stagePools,
+  type StageKey,
+} from './balanceSimulation'
 import { createSeededRandom } from './createSeededRandom'
 import { simulateEquipmentCombatRound } from './equipmentBalanceSimulation'
 import { simulateSpawnStream } from './spawnStreamSimulation'
@@ -107,8 +111,7 @@ export function runPermanentUpgradeBalanceSimulation(): PermanentUpgradeBalanceR
       ),
     ]),
   ) as PermanentUpgradeBalanceReport['profiles']
-  const economyBaselineStageIncome =
-    runBalanceSimulation().stageAverageTotalIncome
+  const economyBaselineStageIncome = runEconomyBaselineStageIncome()
   return {
     configVersion: balanceSimulationConfig.configVersion,
     caseCount: cases.length,

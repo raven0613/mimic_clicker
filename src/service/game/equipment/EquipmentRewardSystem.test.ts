@@ -6,6 +6,7 @@ import { animationConfig } from '../../../configs/animationConfig'
 import { combatConfig } from '../../../configs/combatConfig'
 import { equipmentConfig } from '../../../configs/equipmentConfig'
 import type { LoadedAttachedCardTextures } from '../assets/runtimeAssets'
+import type { EquipmentInventorySnapshot } from './equipmentState'
 import {
   advanceEquipmentRewardMotion,
   createEquipmentRewardMotion,
@@ -101,9 +102,31 @@ describe('equipment reward collection timing', () => {
     system.clear()
     expect(system.getSettlementEquipmentSnapshot()).toEqual([])
   })
+
+  it('publishes low-frequency snapshots when a reward is reserved and equipped', async () => {
+    const snapshots: EquipmentInventorySnapshot[] = []
+    const system = await createSystem(1, (snapshot) => snapshots.push(snapshot))
+    expect(snapshots.at(-1)?.slots[0]).toMatchObject({ status: 'reserved' })
+
+    const motion = createReferenceMotion()
+    advanceUntilSettled(system, motion)
+    system.notifyCoinCollectionCompleted(1)
+    system.update(
+      animationConfig.equipmentReward.postCoinCollectionDelayMs +
+        animationConfig.equipmentReward.collectionDurationMs,
+    )
+
+    expect(snapshots.at(-1)?.slots[0]).toMatchObject({
+      status: 'equipped',
+      instance: { id: 'sword' },
+    })
+  })
 })
 
-async function createSystem(rewardEventId: number | null = 1) {
+async function createSystem(
+  rewardEventId: number | null = 1,
+  onInventoryChanged?: (snapshot: EquipmentInventorySnapshot) => void,
+) {
   const { EquipmentRewardSystem } = await import('./EquipmentRewardSystem')
   const host = {
     getBoundingClientRect: () => ({
@@ -118,6 +141,7 @@ async function createSystem(rewardEventId: number | null = 1) {
     host,
     textures,
     () => 0.5,
+    onInventoryChanged,
   )
   system.setCollectionTargetsFromViewport(
     {

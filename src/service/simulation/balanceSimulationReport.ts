@@ -14,6 +14,10 @@ import {
   createClearRefillBalanceMetrics,
   type ClearRefillBalanceMetrics,
 } from './clearRefillBalanceReport'
+import {
+  createEquipmentManagementBalanceMetrics,
+  type EquipmentManagementBalanceMetrics,
+} from './equipmentManagementBalanceReport'
 
 export interface BalanceSimulationReport {
   configVersion: string
@@ -67,6 +71,7 @@ export interface BalanceSimulationReport {
     averageDefeatedMimicsByLoadout: Record<EquipmentLoadoutKey, number>
     averageOrdinaryIncomeByLoadout: Record<EquipmentLoadoutKey, number>
     jackpotDefeatRateByLoadout: Record<EquipmentLoadoutKey, number>
+    management: EquipmentManagementBalanceMetrics
   }
   unfinishedRoundCount: number
   summary: string
@@ -76,8 +81,11 @@ export function createBalanceSimulationReport(
   rounds: readonly SimulatedRound[],
   stagePools: Record<StageKey, MimicId[]>,
 ): BalanceSimulationReport {
-  const stageAverages = calculateStageAverages(rounds, stagePools)
-  const targetRounds = rounds.filter(
+  const baselineRounds = rounds.filter(
+    (round) => round.backpackManagementPolicy === 'noSwitching',
+  )
+  const stageAverages = calculateStageAverages(baselineRounds, stagePools)
+  const targetRounds = baselineRounds.filter(
     (round) =>
       round.playerModel === 'target' &&
       round.accuracyModel === 'target' &&
@@ -86,23 +94,36 @@ export function createBalanceSimulationReport(
   const targetDefeatRounds = targetRounds.filter(
     (round) => round.jackpotCase === 'defeated',
   )
-  const eligibleSpawns = sum(rounds.map((round) => round.effectCardEligibleSpawns))
+  const eligibleSpawns = sum(
+    baselineRounds.map((round) => round.effectCardEligibleSpawns),
+  )
   const chanceCardsGenerated = sumEffectMetric(
-    rounds,
+    baselineRounds,
     (round) => round.chanceEffectCardsGenerated,
   )
-  const cardsGenerated = sumEffectMetric(rounds, (round) => round.effectCardsGenerated)
-  const cardsTriggered = sumEffectMetric(rounds, (round) => round.cardsTriggered)
-  const attackHits = sumEffectMetric(rounds, (round) => round.attackHits)
-  const additionalDamage = sumEffectMetric(rounds, (round) => round.additionalDamage)
+  const cardsGenerated = sumEffectMetric(
+    baselineRounds,
+    (round) => round.effectCardsGenerated,
+  )
+  const cardsTriggered = sumEffectMetric(
+    baselineRounds,
+    (round) => round.cardsTriggered,
+  )
+  const attackHits = sumEffectMetric(baselineRounds, (round) => round.attackHits)
+  const additionalDamage = sumEffectMetric(
+    baselineRounds,
+    (round) => round.additionalDamage,
+  )
   const report: BalanceSimulationReport = {
     configVersion: balanceSimulationConfig.configVersion,
     caseCount: rounds.length,
     maximumPlacementRejectionRatio: Math.max(
-      ...rounds.map((round) => round.placementRejections / round.placementAttempts),
+      ...baselineRounds.map(
+        (round) => round.placementRejections / round.placementAttempts,
+      ),
     ),
     maximumSpawnShareDeviation: calculateMaximumSpawnShareDeviation(
-      rounds,
+      baselineRounds,
       stagePools,
     ),
     targetProfileAverageDefeatedMimics: average(
@@ -114,10 +135,18 @@ export function createBalanceSimulationReport(
     ...stageAverages,
     mimicDefeatTimeMs: calculateMimicDefeatTimes(),
     jackpotMetrics: {
-      averageOpportunities: average(rounds.map((round) => round.jackpotOpportunities)),
-      revealRate: average(rounds.map((round) => Number(round.jackpotRevealed))),
-      defeatRate: average(rounds.map((round) => Number(round.jackpotDefeated))),
-      escapeRate: average(rounds.map((round) => Number(round.jackpotEscaped))),
+      averageOpportunities: average(
+        baselineRounds.map((round) => round.jackpotOpportunities),
+      ),
+      revealRate: average(
+        baselineRounds.map((round) => Number(round.jackpotRevealed)),
+      ),
+      defeatRate: average(
+        baselineRounds.map((round) => Number(round.jackpotDefeated)),
+      ),
+      escapeRate: average(
+        baselineRounds.map((round) => Number(round.jackpotEscaped)),
+      ),
     },
     effectCardMetrics: {
       carrierRate: {
@@ -129,29 +158,38 @@ export function createBalanceSimulationReport(
       cardsTriggered,
       averageCardsGeneratedPerRound: divideByRoundCount(
         cardsGenerated,
-        rounds.length,
+        baselineRounds.length,
       ),
       averageCardsTriggeredPerRound: divideByRoundCount(
         cardsTriggered,
-        rounds.length,
+        baselineRounds.length,
       ),
       averageHitsPerTrigger: divideEffectMetrics(attackHits, cardsTriggered),
       averageDamagePerTrigger: divideEffectMetrics(
         additionalDamage,
         cardsTriggered,
       ),
-      defeats: sumEffectMetric(rounds, (round) => round.effectDefeats),
-      thunderStrikesTriggered: sum(
-        rounds.map((round) => round.thunderStrikesTriggered),
+      defeats: sumEffectMetric(
+        baselineRounds,
+        (round) => round.effectDefeats,
       ),
-      meteoritesLaunched: sum(rounds.map((round) => round.meteoritesLaunched)),
-      meteoriteImpacts: sum(rounds.map((round) => round.meteoriteImpacts)),
-      tornadoesSpawned: sum(rounds.map((round) => round.tornadoesSpawned)),
+      thunderStrikesTriggered: sum(
+        baselineRounds.map((round) => round.thunderStrikesTriggered),
+      ),
+      meteoritesLaunched: sum(
+        baselineRounds.map((round) => round.meteoritesLaunched),
+      ),
+      meteoriteImpacts: sum(
+        baselineRounds.map((round) => round.meteoriteImpacts),
+      ),
+      tornadoesSpawned: sum(
+        baselineRounds.map((round) => round.tornadoesSpawned),
+      ),
       maximumChainDepth: Math.max(
-        ...rounds.map((round) => round.maximumEffectChainDepth),
+        ...baselineRounds.map((round) => round.maximumEffectChainDepth),
       ),
     },
-    clearRefillMetrics: createClearRefillBalanceMetrics(rounds),
+    clearRefillMetrics: createClearRefillBalanceMetrics(baselineRounds),
     equipmentMetrics: createEquipmentMetrics(rounds),
     unfinishedRoundCount: rounds.filter((round) => !round.finished).length,
     summary: '',
@@ -219,8 +257,11 @@ function calculateStageAverages(
 function createEquipmentMetrics(
   rounds: readonly SimulatedRound[],
 ): BalanceSimulationReport['equipmentMetrics'] {
+  const baselineRounds = rounds.filter(
+    (round) => round.backpackManagementPolicy === 'noSwitching',
+  )
   const activationCount = sum(
-    rounds.map((round) => round.equipment.activationCount),
+    baselineRounds.map((round) => round.equipment.activationCount),
   )
   const averageAdditionalDamageByLoadout = {} as Record<
     EquipmentLoadoutKey,
@@ -245,7 +286,7 @@ function createEquipmentMetrics(
   for (const loadout of Object.keys(
     balanceSimulationConfig.equipmentLoadouts,
   ) as EquipmentLoadoutKey[]) {
-    const loadoutRounds = rounds.filter(
+    const loadoutRounds = baselineRounds.filter(
       (round) => round.equipmentLoadout === loadout,
     )
     averageAdditionalDamageByLoadout[loadout] = {
@@ -267,33 +308,38 @@ function createEquipmentMetrics(
   }
   return {
     averageVisibleGeneratedPerRound: averageEquipmentCounts(
-      rounds,
+      baselineRounds,
       (round) => round.equipment.visibleGenerated,
     ),
     averageHiddenGeneratedPerRound: averageEquipmentCounts(
-      rounds,
+      baselineRounds,
       (round) => round.equipment.hiddenGenerated,
     ),
     averageSuccessfulDropsPerRound: averageEquipmentCounts(
-      rounds,
+      baselineRounds,
       (round) => round.equipment.successfulDrops,
     ),
     averageEquippedPerRound: averageEquipmentCounts(
-      rounds,
+      baselineRounds,
       (round) => round.equipment.equipped,
     ),
     averageBackpackPerRound: averageEquipmentCounts(
-      rounds,
+      baselineRounds,
       (round) => round.equipment.backpack,
     ),
     averageActivationTimeMs:
-      sum(rounds.map((round) => round.equipment.activationTimeTotalMs)) /
+      sum(
+        baselineRounds.map(
+          (round) => round.equipment.activationTimeTotalMs,
+        ),
+      ) /
       Math.max(1, activationCount),
     averageAdditionalDamageByLoadout,
     averageRingDamageStrikesByLoadout,
     averageDefeatedMimicsByLoadout,
     averageOrdinaryIncomeByLoadout,
     jackpotDefeatRateByLoadout,
+    management: createEquipmentManagementBalanceMetrics(rounds),
   }
 }
 
@@ -410,6 +456,10 @@ function createSummary(report: BalanceSimulationReport): string {
     `clear profiles ${clearRefill.profileAverageFullClears.weak.toFixed(2)} → ${clearRefill.profileAverageFullClears.standard.toFixed(2)} → ${clearRefill.profileAverageFullClears.strong.toFixed(2)}`,
     `equipment drops sword ${equipment.averageSuccessfulDropsPerRound.sword.toFixed(2)} / ring ${equipment.averageSuccessfulDropsPerRound.ring.toFixed(2)} per round`,
     `equipment slot activation ${equipment.averageActivationTimeMs.toFixed(0)}ms`,
+    `management switches ${Object.values(equipment.management.averageSwitchesByPolicy).map((value) => value.toFixed(2)).join(' → ')}`,
+    `management defeats ${Object.values(equipment.management.averageDefeatedMimicsByPolicy).map((value) => value.toFixed(1)).join(' → ')}`,
+    `management income ${Object.values(equipment.management.averageTotalIncomeByPolicy).map((value) => value.toFixed(1)).join(' → ')}`,
+    `management Jackpot defeat ${Object.values(equipment.management.jackpotDefeatRateByPolicy).map((value) => `${(value * 100).toFixed(1)}%`).join(' → ')}`,
     `loadout damage sword×2 ${equipment.averageAdditionalDamageByLoadout.duplicateSword.sword.toFixed(1)} / ring×2 ${equipment.averageAdditionalDamageByLoadout.duplicateRing.ring.toFixed(1)}`,
     `combat income ${Object.values(report.stageAverageCombatIncome).map((value) => value.toFixed(1)).join(' → ')}`,
     `equipment sale ${Object.values(report.stageAverageEquipmentSaleIncome).map((value) => value.toFixed(1)).join(' → ')}`,

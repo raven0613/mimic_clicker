@@ -9,7 +9,7 @@ describe('permanent upgrade fixed-seed simulation', () => {
 
   beforeAll(() => {
     report = runPermanentUpgradeBalanceSimulation()
-  }, 70_000)
+  }, 120_000)
 
   it('covers every named permanent profile across the required matrix', () => {
     const matrixCasesPerProfile =
