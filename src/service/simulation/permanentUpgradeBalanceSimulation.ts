@@ -24,7 +24,7 @@ export type PermanentUpgradeProfileKey =
 
 export interface PermanentUpgradeProfileMetrics {
   caseCount: number
-  weaponDamage: number
+  baseWeaponDamage: number
   automaticAttackIntervalMs: number | null
   equipmentSlotCount: number
   averageManualWeaponHits: number
@@ -131,44 +131,25 @@ export function runPermanentUpgradeBalanceSimulation(): PermanentUpgradeBalanceR
 }
 
 const purchaseRoutes = {
-  weaponFirst: [
-    'weaponDamage',
-    'weaponDamage',
-    'weaponDamage',
-    'hoverAutoAttackUnlock',
-    'hoverAutoAttackInterval',
-    'hoverAutoAttackInterval',
-    'hoverAutoAttackInterval',
-    'equipmentSlots',
-  ],
   hoverFirst: [
     'hoverAutoAttackUnlock',
     'hoverAutoAttackInterval',
     'hoverAutoAttackInterval',
     'hoverAutoAttackInterval',
-    'weaponDamage',
-    'weaponDamage',
-    'weaponDamage',
     'equipmentSlots',
   ],
   directSlot: [
     'equipmentSlots',
-    'weaponDamage',
-    'weaponDamage',
-    'weaponDamage',
     'hoverAutoAttackUnlock',
     'hoverAutoAttackInterval',
     'hoverAutoAttackInterval',
     'hoverAutoAttackInterval',
   ],
   balanced: [
-    'weaponDamage',
     'hoverAutoAttackUnlock',
-    'weaponDamage',
-    'hoverAutoAttackInterval',
-    'weaponDamage',
-    'hoverAutoAttackInterval',
     'equipmentSlots',
+    'hoverAutoAttackInterval',
+    'hoverAutoAttackInterval',
     'hoverAutoAttackInterval',
   ],
 } as const satisfies Record<string, readonly PermanentUpgradeId[]>
@@ -242,7 +223,7 @@ function createProfileMetrics(
   )
   return {
     caseCount: cases.length,
-    weaponDamage: snapshot.weaponDamage,
+    baseWeaponDamage: snapshot.weaponDamage,
     automaticAttackIntervalMs: snapshot.hoverAutoAttack.isUnlocked
       ? snapshot.hoverAutoAttack.intervalMs
       : null,
@@ -337,7 +318,6 @@ function projectStageIncome(
 ): number {
   const levels = progress.permanentUpgrades
   if (
-    levels.weaponDamage === 3 &&
     levels.hoverAutoAttackUnlock === 1 &&
     levels.hoverAutoAttackInterval === 3 &&
     levels.equipmentSlots === 1
@@ -350,9 +330,6 @@ function projectStageIncome(
   }
 
   const baseline = profiles.allZero.stageAverageTotalIncome[stage]
-  const weaponProfile = (
-    ['allZero', 'weaponDamage1', 'weaponDamage2', 'weaponDamage3'] as const
-  )[levels.weaponDamage]
   const hoverProfile = levels.hoverAutoAttackUnlock === 0
     ? 'allZero'
     : (
@@ -366,7 +343,6 @@ function projectStageIncome(
   const slotProfile = levels.equipmentSlots === 0 ? 'allZero' : 'equipmentSlot3'
   return (
     economyBaselineStageIncome[stage] +
-    (profiles[weaponProfile].stageAverageTotalIncome[stage] - baseline) +
     (profiles[hoverProfile].stageAverageTotalIncome[stage] - baseline) +
     (profiles[slotProfile].stageAverageTotalIncome[stage] - baseline)
   )

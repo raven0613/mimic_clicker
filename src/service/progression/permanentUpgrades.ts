@@ -1,3 +1,4 @@
+import { combatConfig } from '../../configs/combatConfig'
 import { equipmentConfig } from '../../configs/equipmentConfig'
 import { permanentUpgradeConfig } from '../../configs/permanentUpgradeConfig'
 import type {
@@ -19,7 +20,6 @@ export interface PermanentUpgradePurchaseResult {
 }
 
 export type PermanentUpgradeShopLane =
-  | 'weaponDamage'
   | 'hoverAutoAttack'
   | 'equipmentSlots'
 
@@ -36,7 +36,6 @@ export interface PermanentUpgradeShopOffer {
 
 export function createInitialPermanentUpgradeLevels(): PermanentUpgradeLevels {
   return {
-    weaponDamage: 0,
     hoverAutoAttackUnlock: 0,
     hoverAutoAttackInterval: 0,
     equipmentSlots: 0,
@@ -47,11 +46,7 @@ export function createPermanentUpgradeSnapshot(
   levels: PermanentUpgradeLevels,
 ): PermanentUpgradeSnapshot {
   return {
-    weaponDamage: getLevelValue(
-      permanentUpgradeConfig.weaponDamage.damageByLevel,
-      levels.weaponDamage,
-      'weapon damage',
-    ),
+    weaponDamage: combatConfig.initialWeaponDamage,
     hoverAutoAttack: {
       isUnlocked: getLevelValue(
         [false, true],
@@ -118,28 +113,6 @@ export function getPermanentUpgradeShopOffers(
   progress: ProgressData,
 ): PermanentUpgradeShopOffer[] {
   const levels = progress.permanentUpgrades
-  const weaponOffer = createShopOffer({
-    lane: 'weaponDamage',
-    purchaseId: 'weaponDamage',
-    currentLevel: levels.weaponDamage,
-    maximumLevel:
-      permanentUpgradeConfig.weaponDamage.damageByLevel.length - 1,
-    currentValue: getLevelValue(
-      permanentUpgradeConfig.weaponDamage.damageByLevel,
-      levels.weaponDamage,
-      'weapon damage',
-    ),
-    nextValue:
-      permanentUpgradeConfig.weaponDamage.damageByLevel[
-        levels.weaponDamage + 1
-      ] ?? null,
-    costGold:
-      permanentUpgradeConfig.weaponDamage.costGoldByLevel[
-        levels.weaponDamage
-      ] ?? null,
-    gold: progress.gold,
-  })
-
   const hoverUnlocked = levels.hoverAutoAttackUnlock === 1
   const hoverCurrentLevel = hoverUnlocked
     ? levels.hoverAutoAttackInterval + 1
@@ -193,7 +166,7 @@ export function getPermanentUpgradeShopOffers(
     gold: progress.gold,
   })
 
-  return [weaponOffer, hoverOffer, slotOffer]
+  return [hoverOffer, slotOffer]
 }
 
 function createShopOffer(input: Omit<PermanentUpgradeShopOffer, 'availability'> & {
@@ -211,8 +184,6 @@ function createShopOffer(input: Omit<PermanentUpgradeShopOffer, 'availability'> 
 
 function getCosts(upgradeId: PermanentUpgradeId): readonly number[] {
   switch (upgradeId) {
-    case 'weaponDamage':
-      return permanentUpgradeConfig.weaponDamage.costGoldByLevel
     case 'hoverAutoAttackUnlock':
       return [permanentUpgradeConfig.hoverAutoAttack.unlockCostGold]
     case 'hoverAutoAttackInterval':

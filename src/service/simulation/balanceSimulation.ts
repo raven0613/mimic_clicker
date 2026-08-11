@@ -22,7 +22,6 @@ import {
   collectMeteoriteHitTargets,
   createMeteoriteLaunchOffsets,
   createMeteoriteTrajectory,
-  selectMeteoriteLandingPoint,
 } from '../game/effectCards/meteoriteRules'
 import { createSeededRandom } from './createSeededRandom'
 import { addEffectCounts, countEffectCards } from './effectCardCounts'
@@ -34,15 +33,14 @@ import {
   createBalanceSimulationReport,
   type BalanceSimulationReport,
 } from './balanceSimulationReport'
-import {
-  simulateEffectCardCombat,
-} from './effectCardBalanceSimulation'
+import { simulateEffectCardCombat } from './effectCardBalanceSimulation'
 import {
   simulateEquipmentCombatRound,
   type RoundEquipmentMetrics,
 } from './equipmentBalanceSimulation'
 import type { BackpackManagementPolicyKey } from './equipmentManagementPolicy'
 import { simulateRequiredWeaponHits } from './weaponAttackSimulation'
+import { createSimulatedMeteoriteLandingSequence } from './meteoriteBalanceSimulation'
 import {
   calculateMimicFlowExitDurationMs,
   simulateSpawnStream,
@@ -99,7 +97,11 @@ export interface SimulatedRound {
   refillEffectCardsGenerated: Record<EffectCardId, number>
   refillEquipmentCardsGenerated: Record<'sword' | 'ring', number>
   emptyFieldDurationsMs: number[]
-  suppressedEmptyFieldCount: number
+  refillEffectiveTargetCountsBefore: number[]
+  refillEffectiveTargetCountsAfter: number[]
+  refillTargetShortfalls: number[]
+  jackpotChaseRefillCount: number
+  suppressedRefillCount: number
   repeatedRefillsWithoutInterventionCount: number
   rare1SurvivorsAfterEffectResolution: number
   rare2SurvivorsAfterEffectResolution: number
@@ -198,15 +200,6 @@ function simulateRound(
         random,
       )
     : []
-  const shellMeteoriteLandings = shellMeteoriteLaunchOffsets.map(() =>
-    selectMeteoriteLandingPoint(
-      {
-        width: balanceSimulationConfig.field.widthPixels,
-        height: balanceSimulationConfig.field.heightPixels,
-      },
-      random,
-    ),
-  )
   const jackpotTarget = {
     id: -1,
     role: 'jackpot' as const,
@@ -215,15 +208,19 @@ function simulateRound(
     logicalY: balanceSimulationConfig.field.heightPixels / 2,
     jackpotPhase: 'chasing' as const,
   }
+  const meteoriteField = {
+    width: balanceSimulationConfig.field.widthPixels,
+    height: balanceSimulationConfig.field.heightPixels,
+  }
+  const shellMeteoriteLandings = createSimulatedMeteoriteLandingSequence(
+    meteoriteField,
+    [jackpotTarget],
+    shellMeteoriteLaunchOffsets.length,
+    random,
+  )
   const shellMeteoriteHitsJackpot = shellMeteoriteLandings.filter(
     (landing, index) => {
-      const trajectory = createMeteoriteTrajectory(
-        {
-          width: balanceSimulationConfig.field.widthPixels,
-          height: balanceSimulationConfig.field.heightPixels,
-        },
-        landing,
-      )
+      const trajectory = createMeteoriteTrajectory(meteoriteField, landing)
       const impactDelayMs =
         effectCardConfig.ejection.durationMs +
         shellMeteoriteLaunchOffsets[index] +

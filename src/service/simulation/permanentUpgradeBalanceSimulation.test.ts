@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
-import { permanentUpgradeConfig } from '../../configs/permanentUpgradeConfig'
+import { combatConfig } from '../../configs/combatConfig'
 import { runPermanentUpgradeBalanceSimulation } from './permanentUpgradeBalanceSimulation'
 
 describe('permanent upgrade fixed-seed simulation', () => {
@@ -28,25 +28,10 @@ describe('permanent upgrade fixed-seed simulation', () => {
     }
   })
 
-  it('keeps weapon damage strictly improving at every configured level', () => {
-    for (
-      let level = 1;
-      level < permanentUpgradeConfig.weaponDamage.damageByLevel.length;
-      level += 1
-    ) {
-      expect(permanentUpgradeConfig.weaponDamage.damageByLevel[level]).toBeGreaterThan(
-        permanentUpgradeConfig.weaponDamage.damageByLevel[level - 1],
-      )
+  it('keeps base weapon damage fixed for every permanent profile', () => {
+    for (const profile of Object.values(report.profiles)) {
+      expect(profile.baseWeaponDamage).toBe(combatConfig.initialWeaponDamage)
     }
-    expect(report.profiles.weaponDamage1.weaponDamage).toBeGreaterThan(
-      report.profiles.allZero.weaponDamage,
-    )
-    expect(report.profiles.weaponDamage2.weaponDamage).toBeGreaterThan(
-      report.profiles.weaponDamage1.weaponDamage,
-    )
-    expect(report.profiles.weaponDamage3.weaponDamage).toBeGreaterThan(
-      report.profiles.weaponDamage2.weaponDamage,
-    )
   })
 
   it('keeps manual damage dominant while automatic intervals improve', () => {
@@ -88,10 +73,10 @@ describe('permanent upgrade fixed-seed simulation', () => {
 
   it('keeps simulated purchase routes inside the configured pacing targets', () => {
     const targets = balanceSimulationConfig.targets.permanentUpgrades
-    const firstWeaponPurchase = report.purchaseRoutes.weaponFirst.purchasedAtRound[0]
+    const firstHoverPurchase = report.purchaseRoutes.hoverFirst.purchasedAtRound[0]
 
-    expect(firstWeaponPurchase.round).toBeLessThanOrEqual(
-      targets.maximumFirstWeaponPurchaseRounds,
+    expect(firstHoverPurchase.round).toBeLessThanOrEqual(
+      targets.maximumFirstHoverPurchaseRounds,
     )
     expect(
       report.purchaseRoutes.directSlot.purchasedAtRound[0].round,

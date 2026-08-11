@@ -2,6 +2,8 @@ export const clearRefillConfig = {
   confirmationDelayMs: 100,
   minimumRemainingRoundMs: 1_000,
   minimumVisibleRatioForTarget: 0.6,
+  triggerMaximumEffectiveTargetCount: 6,
+  targetEffectiveCount: 12,
 } as const
 
 export const clearFeedbackConfig = {

@@ -11,7 +11,9 @@ import {
   collectMeteoriteHitTargets,
   createMeteoriteLaunchOffsets,
   createMeteoriteTrajectory,
+  selectFirstMeteoriteLandingPoint,
   selectMeteoriteLandingPoint,
+  selectSpacedMeteoriteLandingPoint,
 } from './meteoriteRules'
 import type { EffectAttackTarget } from './effectTargeting'
 
@@ -71,6 +73,49 @@ describe('meteorite rules', () => {
     )
     expect(bottomRight.x).toBeCloseTo(field.width - side / 2)
     expect(bottomRight.y).toBe(field.height)
+  })
+
+  it('selects the first landing from an eligible target and guarantees initial overlap', () => {
+    const target = createTarget(1, field.width / 2, field.height / 2)
+    const landing = selectFirstMeteoriteLandingPoint(
+      field,
+      [target],
+      () => 0,
+    )
+
+    expect(landing).not.toBeNull()
+    expect(collectMeteoriteHitTargets([target], landing!)).toEqual([target])
+    expect(selectFirstMeteoriteLandingPoint(field, [], () => 0)).toBeNull()
+  })
+
+  it('keeps later landings apart when a valid candidate exists', () => {
+    const first = selectMeteoriteLandingPoint(field, sequenceRandom([0.5, 0.5]))
+    const next = selectSpacedMeteoriteLandingPoint(
+      field,
+      [first],
+      sequenceRandom([0.5, 0.5, 0, 0]),
+    )
+    const minimumDistance =
+      calculateMeteoriteDamageAreaSide() *
+      effectCardConfig.meteorite.minimumLandingDistanceMultiplier
+
+    expect(Math.hypot(next.x - first.x, next.y - first.y)).toBeGreaterThanOrEqual(
+      minimumDistance,
+    )
+  })
+
+  it('falls back to the farthest bounded candidate when spacing is impossible', () => {
+    const side = calculateMeteoriteDamageAreaSide()
+    const constrainedField = { width: side, height: side }
+    const onlyLanding = { x: side / 2, y: side }
+
+    expect(
+      selectSpacedMeteoriteLandingPoint(
+        constrainedField,
+        [onlyLanding],
+        () => 0.5,
+      ),
+    ).toEqual(onlyLanding)
   })
 
   it('starts fully outside the upper-right edge and travels down-left', () => {

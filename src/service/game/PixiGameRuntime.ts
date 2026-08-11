@@ -15,6 +15,7 @@ import { assignJackpotRuntimeAttachedCards, updateRuntimeAttachedCardHalos } fro
 import { applyRuntimeMimicDamage } from './damage/runtimeMimicDamage'
 import { RuntimeWeaponAttackSystem } from './damage/RuntimeWeaponAttackSystem'
 import { RuntimeClearRefillSystem } from './clearRefill/RuntimeClearRefillSystem'
+import { calculateRefillSpawnCount } from './clearRefill/clearRefillTargets'
 import { resolveRuntimeRingStrikes } from './equipment/runtimeRingStrikes'
 import type { MoveEquipmentCommand } from './equipment/equipmentState'
 import { addRuntimeDeathEffect } from './effects/runtimeDeathEffect'
@@ -129,10 +130,14 @@ export class PixiGameRuntime {
         remainingRoundMs: this.mainRemainingMs,
       }),
       hasActiveEffectChain: () => this.effectSystems?.hasActiveEffectCardChain() ?? false,
-      refill: () => {
+      refill: ({ effectiveTargetCount, isFullClear }) => {
         this.trySpawnJackpotDisguise()
-        this.mimicSpawner?.fillField(this.mimicPool, 'clearRefill')
-        this.effectSystems?.showClearFeedback()
+        this.mimicSpawner?.fillField(
+          this.mimicPool,
+          'clearRefill',
+          calculateRefillSpawnCount(effectiveTargetCount),
+        )
+        if (isFullClear) this.effectSystems?.showClearFeedback()
       },
     })
     this.app.ticker.add(this.update)
@@ -192,15 +197,10 @@ export class PixiGameRuntime {
       y: this.app.screen.height,
     })
   }
-  public setEquipmentCollectionTargets(
-    targets: EquipmentCollectionTargets,
-  ): void {
-    this.effectSystems?.setEquipmentCollectionTargets(targets, {
-      x: this.app.screen.width,
-      y: this.app.screen.height,
-    })
+  public setEquipmentCollectionTargets(targets: EquipmentCollectionTargets): void {
+    const fieldSize = { x: this.app.screen.width, y: this.app.screen.height }
+    this.effectSystems?.setEquipmentCollectionTargets(targets, fieldSize)
   }
-
   public destroy(): void {
     if (!this.initialized) return
     this.app.ticker.remove(this.update)

@@ -11,15 +11,19 @@ import {
   calculateExplosionDisplaySize,
   calculateMeteoriteDisplaySize,
   collectMeteoriteHitTargets,
-  createMeteoriteLaunchOffsets,
   createMeteoriteTrajectory,
+  selectFirstMeteoriteLandingPoint,
   selectMeteoriteLandingPoint,
+  selectSpacedMeteoriteLandingPoint,
   type MeteoriteTrajectory,
 } from './meteoriteRules'
 import { toRuntimeEffectAttackTarget } from './runtimeEffectTarget'
 
-interface ScheduledMeteorite {
-  remainingDelayMs: number
+interface MeteoriteSequence {
+  firstTargetWaitRemainingMs: number
+  nextLaunchRemainingMs: number
+  previousLandings: Vector2[]
+  remainingMeteoriteCount: number
 }
 
 interface ActiveMeteorite {
@@ -36,7 +40,7 @@ interface MeteoriteTextures {
 
 export class MeteoriteEffectSystem {
   private readonly explosionPlayer: OneShotSpriteEffectSystem
-  private readonly scheduledMeteorites: ScheduledMeteorite[] = []
+  private readonly sequences: MeteoriteSequence[] = []
   private readonly activeMeteorites: ActiveMeteorite[] = []
   private readonly layer: Container
   private readonly textures: MeteoriteTextures
@@ -66,14 +70,16 @@ export class MeteoriteEffectSystem {
   }
 
   public trigger(): void {
-    const offsets = createMeteoriteLaunchOffsets(
-      effectCardConfig.meteorite.initialMeteoriteCount,
-      this.random,
-    )
-    for (const offset of offsets) {
-      if (offset === 0) this.launchMeteorite()
-      else this.scheduledMeteorites.push({ remainingDelayMs: offset })
+    const sequence: MeteoriteSequence = {
+      firstTargetWaitRemainingMs:
+        effectCardConfig.meteorite.maximumFirstTargetWaitMs,
+      nextLaunchRemainingMs: 0,
+      previousLandings: [],
+      remainingMeteoriteCount:
+        effectCardConfig.meteorite.initialMeteoriteCount,
     }
+    this.sequences.push(sequence)
+    this.advanceSequence(sequence, 0)
   }
 
   public update(deltaMs: number): void {
@@ -83,7 +89,7 @@ export class MeteoriteEffectSystem {
   }
 
   public cancelUnresolved(): void {
-    this.scheduledMeteorites.length = 0
+    this.sequences.length = 0
     for (const meteorite of this.activeMeteorites) {
       destroyMeteoriteSprite(meteorite.sprite)
     }
@@ -97,28 +103,84 @@ export class MeteoriteEffectSystem {
 
   public hasActiveEffects(): boolean {
     return (
-      this.scheduledMeteorites.length > 0 ||
+      this.sequences.length > 0 ||
       this.activeMeteorites.length > 0 ||
       this.explosionPlayer.hasActiveEffects()
     )
   }
 
   private updateScheduledMeteorites(deltaMs: number): void {
-    for (
-      let index = this.scheduledMeteorites.length - 1;
-      index >= 0;
-      index -= 1
-    ) {
-      const scheduled = this.scheduledMeteorites[index]
-      scheduled.remainingDelayMs -= Math.max(0, deltaMs)
-      if (scheduled.remainingDelayMs > 0) continue
+    for (const sequence of [...this.sequences]) {
+      this.advanceSequence(sequence, Math.max(0, deltaMs))
+      if (sequence.remainingMeteoriteCount > 0) continue
+      const index = this.sequences.indexOf(sequence)
+      if (index >= 0) this.sequences.splice(index, 1)
+    }
+  }
 
-      this.scheduledMeteorites.splice(index, 1)
-      const meteorite = this.launchMeteorite()
-      this.advanceMeteorite(
-        meteorite,
-        Math.max(0, -scheduled.remainingDelayMs),
+  private advanceSequence(
+    sequence: MeteoriteSequence,
+    deltaMs: number,
+  ): void {
+    let availableMs = deltaMs
+    while (sequence.remainingMeteoriteCount > 0) {
+      if (sequence.previousLandings.length === 0) {
+        const targets = this.getTargets().map(toRuntimeEffectAttackTarget)
+        const targetedLanding = selectFirstMeteoriteLandingPoint(
+          this.getFieldSize(),
+          targets,
+          this.random,
+        )
+        if (targetedLanding) {
+          this.launchFromSequence(sequence, targetedLanding, 0)
+          return
+        }
+        if (availableMs < sequence.firstTargetWaitRemainingMs) {
+          sequence.firstTargetWaitRemainingMs -= availableMs
+          return
+        }
+        availableMs -= sequence.firstTargetWaitRemainingMs
+        sequence.firstTargetWaitRemainingMs = 0
+        this.launchFromSequence(
+          sequence,
+          selectMeteoriteLandingPoint(this.getFieldSize(), this.random),
+          availableMs,
+        )
+        continue
+      }
+
+      if (availableMs < sequence.nextLaunchRemainingMs) {
+        sequence.nextLaunchRemainingMs -= availableMs
+        return
+      }
+      availableMs -= sequence.nextLaunchRemainingMs
+      this.launchFromSequence(
+        sequence,
+        selectSpacedMeteoriteLandingPoint(
+          this.getFieldSize(),
+          sequence.previousLandings,
+          this.random,
+        ),
+        availableMs,
       )
+    }
+  }
+
+  private launchFromSequence(
+    sequence: MeteoriteSequence,
+    landing: Vector2,
+    flightAdvanceMs: number,
+  ): void {
+    sequence.previousLandings.push(landing)
+    sequence.remainingMeteoriteCount -= 1
+    const meteorite = this.launchMeteorite(landing)
+    this.advanceMeteorite(meteorite, flightAdvanceMs)
+    if (sequence.remainingMeteoriteCount > 0) {
+      const config = effectCardConfig.meteorite
+      sequence.nextLaunchRemainingMs =
+        config.minimumLaunchIntervalMs +
+        Math.min(1, Math.max(0, this.random())) *
+          (config.maximumLaunchIntervalMs - config.minimumLaunchIntervalMs)
     }
   }
 
@@ -128,9 +190,8 @@ export class MeteoriteEffectSystem {
     }
   }
 
-  private launchMeteorite(): ActiveMeteorite {
+  private launchMeteorite(landing: Vector2): ActiveMeteorite {
     const field = this.getFieldSize()
-    const landing = selectMeteoriteLandingPoint(field, this.random)
     const trajectory = createMeteoriteTrajectory(field, landing)
     const config = effectCardConfig.meteorite
     const displaySize = calculateMeteoriteDisplaySize()

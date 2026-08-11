@@ -5,7 +5,8 @@ import { ClearRefillController } from './clearRefillController'
 
 const activeEmptyField = {
   hasActiveEffectChain: true,
-  hasEffectiveTarget: false,
+  effectiveTargetCount: 0,
+  isJackpotChaseActive: false,
   isRoundActive: true,
   remainingRoundMs: clearRefillConfig.minimumRemainingRoundMs + 1,
 }
@@ -24,13 +25,13 @@ describe('ClearRefillController', () => {
         ...activeEmptyField,
         deltaMs: clearRefillConfig.confirmationDelayMs - 1,
       }),
-    ).toBe(false)
+    ).toBeNull()
     expect(
       controller.update({
         ...activeEmptyField,
         deltaMs: 1,
       }),
-    ).toBe(true)
+    ).toEqual({ effectiveTargetCount: 0, isFullClear: true })
   })
 
   it('does not start confirmation after natural flow exit', () => {
@@ -46,10 +47,28 @@ describe('ClearRefillController', () => {
         ...activeEmptyField,
         deltaMs: clearRefillConfig.confirmationDelayMs,
       }),
-    ).toBe(false)
+    ).toBeNull()
   })
 
-  it('cancels confirmation when a target becomes effective', () => {
+  it('does not start confirmation above the low-density threshold', () => {
+    const controller = new ClearRefillController()
+    const populatedField = {
+      ...activeEmptyField,
+      effectiveTargetCount:
+        clearRefillConfig.triggerMaximumEffectiveTargetCount + 1,
+    }
+
+    controller.notifyTargetRemoved({ cause: 'defeat', ...populatedField })
+
+    expect(
+      controller.update({
+        ...activeEmptyField,
+        deltaMs: clearRefillConfig.confirmationDelayMs,
+      }),
+    ).toBeNull()
+  })
+
+  it('cancels confirmation when the effective target count rises above the threshold', () => {
     const controller = new ClearRefillController()
     controller.notifyTargetRemoved({
       cause: 'defeat',
@@ -59,16 +78,17 @@ describe('ClearRefillController', () => {
     expect(
       controller.update({
         ...activeEmptyField,
-        hasEffectiveTarget: true,
+        effectiveTargetCount:
+          clearRefillConfig.triggerMaximumEffectiveTargetCount + 1,
         deltaMs: clearRefillConfig.confirmationDelayMs,
       }),
-    ).toBe(false)
+    ).toBeNull()
     expect(
       controller.update({
         ...activeEmptyField,
         deltaMs: clearRefillConfig.confirmationDelayMs,
       }),
-    ).toBe(false)
+    ).toBeNull()
   })
 
   it('rejects confirmation below the configured remaining round time', () => {
@@ -85,7 +105,7 @@ describe('ClearRefillController', () => {
         remainingRoundMs: clearRefillConfig.minimumRemainingRoundMs - 1,
         deltaMs: clearRefillConfig.confirmationDelayMs,
       }),
-    ).toBe(false)
+    ).toBeNull()
   })
 
   it('allows at most one refill while the automatic effect chain remains active', () => {
@@ -96,7 +116,7 @@ describe('ClearRefillController', () => {
         ...activeEmptyField,
         deltaMs: clearRefillConfig.confirmationDelayMs,
       }),
-    ).toBe(true)
+    ).toEqual({ effectiveTargetCount: 0, isFullClear: true })
 
     controller.notifyTargetRemoved({ cause: 'defeat', ...activeEmptyField })
     expect(
@@ -104,7 +124,7 @@ describe('ClearRefillController', () => {
         ...activeEmptyField,
         deltaMs: clearRefillConfig.confirmationDelayMs,
       }),
-    ).toBe(false)
+    ).toBeNull()
   })
 
   it('re-enables a future clear after valid manual weapon damage', () => {
@@ -118,7 +138,7 @@ describe('ClearRefillController', () => {
         ...activeEmptyField,
         deltaMs: clearRefillConfig.confirmationDelayMs,
       }),
-    ).toBe(true)
+    ).toEqual({ effectiveTargetCount: 0, isFullClear: true })
   })
 
   it('unlocks when the effect chain ends without refilling an earlier empty field retroactively', () => {
@@ -131,7 +151,7 @@ describe('ClearRefillController', () => {
         hasActiveEffectChain: false,
         deltaMs: clearRefillConfig.confirmationDelayMs,
       }),
-    ).toBe(false)
+    ).toBeNull()
 
     controller.notifyTargetRemoved({
       cause: 'defeat',
@@ -144,7 +164,42 @@ describe('ClearRefillController', () => {
         hasActiveEffectChain: false,
         deltaMs: clearRefillConfig.confirmationDelayMs,
       }),
-    ).toBe(true)
+    ).toEqual({ effectiveTargetCount: 0, isFullClear: true })
+  })
+
+  it('confirms a low-density refill without reporting a full clear', () => {
+    const controller = new ClearRefillController()
+    const lowDensityField = {
+      ...activeEmptyField,
+      effectiveTargetCount:
+        clearRefillConfig.triggerMaximumEffectiveTargetCount,
+    }
+
+    controller.notifyTargetRemoved({ cause: 'defeat', ...lowDensityField })
+
+    expect(
+      controller.update({
+        ...lowDensityField,
+        deltaMs: clearRefillConfig.confirmationDelayMs,
+      }),
+    ).toEqual({
+      effectiveTargetCount:
+        clearRefillConfig.triggerMaximumEffectiveTargetCount,
+      isFullClear: false,
+    })
+  })
+
+  it('cancels a pending refill when the Jackpot chase begins', () => {
+    const controller = new ClearRefillController()
+    controller.notifyTargetRemoved({ cause: 'defeat', ...activeEmptyField })
+
+    expect(
+      controller.update({
+        ...activeEmptyField,
+        isJackpotChaseActive: true,
+        deltaMs: clearRefillConfig.confirmationDelayMs,
+      }),
+    ).toBeNull()
   })
 
   it('clears pending and locked state when reset for round cleanup', () => {
@@ -157,7 +212,7 @@ describe('ClearRefillController', () => {
         ...activeEmptyField,
         deltaMs: clearRefillConfig.confirmationDelayMs,
       }),
-    ).toBe(true)
+    ).toEqual({ effectiveTargetCount: 0, isFullClear: true })
   })
 })
 

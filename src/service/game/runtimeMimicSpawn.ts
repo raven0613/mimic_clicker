@@ -51,6 +51,7 @@ interface CreateTopEdgeRuntimeMimicInput extends RuntimeSpawnContext {
 interface CreateFieldFillRuntimeMimicsInput extends RuntimeSpawnContext {
   mimicPool: MimicId[]
   playRefillEntrance: boolean
+  maximumNewEntityCount: number
 }
 
 type FieldFillPresentation = 'immediate' | 'clearRefill'
@@ -94,11 +95,13 @@ export class RuntimeMimicSpawner {
   public fillField(
     mimicPool: MimicId[],
     presentation: FieldFillPresentation,
+    maximumNewEntityCount: number = spawnConfig.maximumConcurrentMimics,
   ): number {
     const entities = createFieldFillRuntimeMimics({
       ...this.createContext(),
       mimicPool,
       playRefillEntrance: presentation === 'clearRefill',
+      maximumNewEntityCount,
     })
     for (const entity of entities) this.addEntity(entity)
     return entities.length
@@ -160,7 +163,10 @@ function createFieldFillRuntimeMimics(
       ...createFieldFillSpawnArea(input.fieldSize.y),
       occupiedBounds: createOccupiedBounds(input.entities),
       maximumPositionCount:
-        spawnConfig.maximumConcurrentMimics - input.entities.length,
+        Math.min(
+          input.maximumNewEntityCount,
+          spawnConfig.maximumConcurrentMimics - input.entities.length,
+        ),
     },
     input.random,
   )

@@ -4,7 +4,8 @@ type TargetRemovalCause = 'defeat' | 'flowExit'
 
 interface ClearRefillFieldState {
   hasActiveEffectChain: boolean
-  hasEffectiveTarget: boolean
+  effectiveTargetCount: number
+  isJackpotChaseActive: boolean
   isRoundActive: boolean
   remainingRoundMs: number
 }
@@ -17,6 +18,11 @@ interface UpdateClearRefillInput extends ClearRefillFieldState {
   deltaMs: number
 }
 
+export interface ClearRefillDecision {
+  effectiveTargetCount: number
+  isFullClear: boolean
+}
+
 export class ClearRefillController {
   private confirmationRemainingMs: number | null = null
   private refillLocked = false
@@ -25,7 +31,9 @@ export class ClearRefillController {
     if (
       input.cause !== 'defeat' ||
       !input.isRoundActive ||
-      input.hasEffectiveTarget ||
+      input.isJackpotChaseActive ||
+      input.effectiveTargetCount >
+        clearRefillConfig.triggerMaximumEffectiveTargetCount ||
       input.remainingRoundMs < clearRefillConfig.minimumRemainingRoundMs ||
       this.refillLocked ||
       this.confirmationRemainingMs !== null
@@ -40,30 +48,35 @@ export class ClearRefillController {
     this.refillLocked = false
   }
 
-  public update(input: UpdateClearRefillInput): boolean {
+  public update(input: UpdateClearRefillInput): ClearRefillDecision | null {
     if (!input.isRoundActive) {
       this.reset()
-      return false
+      return null
     }
 
     if (this.refillLocked && !input.hasActiveEffectChain) {
       this.refillLocked = false
     }
-    if (this.confirmationRemainingMs === null) return false
+    if (this.confirmationRemainingMs === null) return null
     if (
-      input.hasEffectiveTarget ||
+      input.isJackpotChaseActive ||
+      input.effectiveTargetCount >
+        clearRefillConfig.triggerMaximumEffectiveTargetCount ||
       input.remainingRoundMs < clearRefillConfig.minimumRemainingRoundMs
     ) {
       this.confirmationRemainingMs = null
-      return false
+      return null
     }
 
     this.confirmationRemainingMs -= Math.max(0, input.deltaMs)
-    if (this.confirmationRemainingMs > 0) return false
+    if (this.confirmationRemainingMs > 0) return null
 
     this.confirmationRemainingMs = null
     this.refillLocked = true
-    return true
+    return {
+      effectiveTargetCount: input.effectiveTargetCount,
+      isFullClear: input.effectiveTargetCount === 0,
+    }
   }
 
   public reset(): void {

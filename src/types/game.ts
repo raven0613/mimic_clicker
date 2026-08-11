@@ -5,7 +5,6 @@ export const mimicIds = ['normal', 'rare1', 'rare2'] as const
 export type MimicId = (typeof mimicIds)[number]
 
 export const permanentUpgradeIds = [
-  'weaponDamage',
   'hoverAutoAttackUnlock',
   'hoverAutoAttackInterval',
   'equipmentSlots',
@@ -14,7 +13,6 @@ export const permanentUpgradeIds = [
 export type PermanentUpgradeId = (typeof permanentUpgradeIds)[number]
 
 export interface PermanentUpgradeLevels {
-  weaponDamage: number
   hoverAutoAttackUnlock: number
   hoverAutoAttackInterval: number
   equipmentSlots: number
@@ -52,7 +50,7 @@ export interface RoundResult {
 }
 
 export interface ProgressData {
-  schemaVersion: 3
+  schemaVersion: 4
   completedRounds: number
   gold: number
   unlockedMimicIds: MimicId[]

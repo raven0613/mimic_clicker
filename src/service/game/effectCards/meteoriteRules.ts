@@ -74,15 +74,84 @@ export function selectMeteoriteLandingPoint(
   random: RandomSource,
 ): Vector2 {
   const side = calculateMeteoriteDamageAreaSide()
-  if (field.width < side || field.height < side) {
-    throw new Error(
-      `Cannot place meteorite damage area ${side}x${side} inside field ${field.width}x${field.height}`,
-    )
-  }
+  assertMeteoriteCanFit(field, side)
   return {
     x: side / 2 + clampUnit(random()) * (field.width - side),
     y: side + clampUnit(random()) * (field.height - side),
   }
+}
+
+export function selectFirstMeteoriteLandingPoint<
+  T extends EffectAttackTarget,
+>(
+  field: FieldSize,
+  targets: readonly T[],
+  random: RandomSource,
+): Vector2 | null {
+  const eligibleTargets = targets.filter(isEligibleEffectAttackTarget)
+  if (eligibleTargets.length === 0) return null
+
+  const selectedIndex = Math.min(
+    eligibleTargets.length - 1,
+    Math.floor(clampUnit(random()) * eligibleTargets.length),
+  )
+  const selected = eligibleTargets[selectedIndex]
+  const side = calculateMeteoriteDamageAreaSide()
+  assertMeteoriteCanFit(field, side)
+  return {
+    x: clamp(
+      selected.logicalX,
+      side / 2,
+      field.width - side / 2,
+    ),
+    y: clamp(
+      selected.logicalY + spawnConfig.cardHeightPixels / 2,
+      side,
+      field.height,
+    ),
+  }
+}
+
+export function selectSpacedMeteoriteLandingPoint(
+  field: FieldSize,
+  previousLandings: readonly Vector2[],
+  random: RandomSource,
+): Vector2 {
+  if (previousLandings.length === 0) {
+    return selectMeteoriteLandingPoint(field, random)
+  }
+
+  const config = effectCardConfig.meteorite
+  if (!Number.isInteger(config.landingCandidateCount) || config.landingCandidateCount <= 0) {
+    throw new Error('Meteorite landing candidate count must be a positive integer')
+  }
+  if (
+    !Number.isFinite(config.minimumLandingDistanceMultiplier) ||
+    config.minimumLandingDistanceMultiplier <= 0
+  ) {
+    throw new Error(
+      'Meteorite minimum landing distance multiplier must be greater than zero',
+    )
+  }
+  const candidates = Array.from(
+    { length: config.landingCandidateCount },
+    () => selectMeteoriteLandingPoint(field, random),
+  )
+  const minimumDistance =
+    calculateMeteoriteDamageAreaSide() *
+    config.minimumLandingDistanceMultiplier
+  const qualifying = candidates.find(
+    (candidate) =>
+      minimumDistanceFrom(candidate, previousLandings) >= minimumDistance,
+  )
+  if (qualifying) return qualifying
+
+  return candidates.reduce((farthest, candidate) =>
+    minimumDistanceFrom(candidate, previousLandings) >
+    minimumDistanceFrom(farthest, previousLandings)
+      ? candidate
+      : farthest,
+  )
 }
 
 export function createMeteoriteTrajectory(
@@ -189,4 +258,27 @@ function getRotatedMeteoriteBounds(rotation: number): {
 
 function clampUnit(value: number): number {
   return Math.min(1, Math.max(0, value))
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value))
+}
+
+function minimumDistanceFrom(
+  point: Vector2,
+  previousPoints: readonly Vector2[],
+): number {
+  return Math.min(
+    ...previousPoints.map((previous) =>
+      Math.hypot(point.x - previous.x, point.y - previous.y),
+    ),
+  )
+}
+
+function assertMeteoriteCanFit(field: FieldSize, side: number): void {
+  if (field.width < side || field.height < side) {
+    throw new Error(
+      `Cannot place meteorite damage area ${side}x${side} inside field ${field.width}x${field.height}`,
+    )
+  }
 }

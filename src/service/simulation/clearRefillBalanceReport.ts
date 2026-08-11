@@ -18,7 +18,12 @@ export interface ClearRefillBalanceMetrics {
   maximumEffectChainClearRatio: number
   averageEmptyFieldDurationMs: number
   p90EmptyFieldDurationMs: number
-  suppressedEmptyFieldCount: number
+  averageEffectiveTargetsBeforeRefill: number
+  averageEffectiveTargetsAfterRefill: number
+  averageRefillTargetShortfall: number
+  p90RefillTargetShortfall: number
+  jackpotChaseRefillCount: number
+  suppressedRefillCount: number
   repeatedRefillsWithoutInterventionCount: number
   refillTotalIncomeIncreaseRatio: number
   refillEffectCardsGenerated: Record<EffectCardId, number>
@@ -88,8 +93,24 @@ export function createClearRefillBalanceMetrics(
       emptyDurations.length > 0 ? average(emptyDurations) : 0,
     p90EmptyFieldDurationMs:
       emptyDurations.length > 0 ? percentile(emptyDurations, 0.9) : 0,
-    suppressedEmptyFieldCount: sum(
-      rounds.map((round) => round.suppressedEmptyFieldCount),
+    averageEffectiveTargetsBeforeRefill: averageOptional(
+      rounds.flatMap((round) => round.refillEffectiveTargetCountsBefore),
+    ),
+    averageEffectiveTargetsAfterRefill: averageOptional(
+      rounds.flatMap((round) => round.refillEffectiveTargetCountsAfter),
+    ),
+    averageRefillTargetShortfall: averageOptional(
+      rounds.flatMap((round) => round.refillTargetShortfalls),
+    ),
+    p90RefillTargetShortfall: percentileOptional(
+      rounds.flatMap((round) => round.refillTargetShortfalls),
+      0.9,
+    ),
+    jackpotChaseRefillCount: sum(
+      rounds.map((round) => round.jackpotChaseRefillCount),
+    ),
+    suppressedRefillCount: sum(
+      rounds.map((round) => round.suppressedRefillCount),
     ),
     repeatedRefillsWithoutInterventionCount: sum(
       rounds.map(
@@ -195,6 +216,14 @@ function sumEffectCounts(
 
 function average(values: number[]): number {
   return sum(values) / values.length
+}
+
+function averageOptional(values: number[]): number {
+  return values.length > 0 ? average(values) : 0
+}
+
+function percentileOptional(values: number[], ratio: number): number {
+  return values.length > 0 ? percentile(values, ratio) : 0
 }
 
 function percentile(values: number[], ratio: number): number {

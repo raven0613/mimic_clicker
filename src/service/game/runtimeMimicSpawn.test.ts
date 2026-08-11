@@ -58,16 +58,31 @@ describe('runtime Mimic spawn presentation', () => {
       expect.objectContaining({ playRefillEntrance: false }),
     )
   })
+
+  it('stops a refill after creating the requested number of new targets', () => {
+    let randomCallCount = 0
+    const spawner = createSpawner(() => {
+      randomCallCount += 1
+      if (randomCallCount <= 16) return 0
+      if (randomCallCount <= 32) return 1
+      return 0.5
+    })
+    const requestedCount = 2
+
+    expect(
+      spawner.fillField(['normal'], 'clearRefill', requestedCount),
+    ).toBe(requestedCount)
+  })
 })
 
-function createSpawner(): RuntimeMimicSpawner {
+function createSpawner(random: () => number = () => 0.5): RuntimeMimicSpawner {
   const entities: RuntimeMimicEntity[] = []
   return new RuntimeMimicSpawner({
     getFieldSize: () => ({ x: 800, y: 600 }),
     getEntities: () => entities,
     mimicTextures: {} as LoadedMimicTextures,
     attachedCardTextures: {} as LoadedAttachedCardTextures,
-    random: () => 0.5,
+    random,
     onAttack: vi.fn(),
     onHoverChanged: vi.fn(),
     onSpawn: (entity) => entities.push(entity),

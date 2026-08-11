@@ -95,11 +95,9 @@ const version2ProgressSchema = z
   })
   .strict()
 
-const permanentUpgradeLevelsSchema = z
+const version3PermanentUpgradeLevelsSchema = z
   .object({
-    weaponDamage: boundedLevelSchema(
-      permanentUpgradeConfig.weaponDamage.damageByLevel.length - 1,
-    ),
+    weaponDamage: boundedLevelSchema(3),
     hoverAutoAttackUnlock: boundedLevelSchema(1),
     hoverAutoAttackInterval: boundedLevelSchema(
       permanentUpgradeConfig.hoverAutoAttack.intervalMsByLevel.length - 1,
@@ -109,22 +107,37 @@ const permanentUpgradeLevelsSchema = z
     ),
   })
   .strict()
-  .superRefine((levels, context) => {
-    if (
-      levels.hoverAutoAttackUnlock === 0 &&
-      levels.hoverAutoAttackInterval > 0
-    ) {
-      context.addIssue({
-        code: 'custom',
-        message: 'Hover automatic attack interval requires its unlock',
-        path: ['hoverAutoAttackInterval'],
-      })
-    }
+  .superRefine(validatePermanentUpgradePrerequisite)
+
+const permanentUpgradeLevelsSchema = z
+  .object({
+    hoverAutoAttackUnlock: boundedLevelSchema(1),
+    hoverAutoAttackInterval: boundedLevelSchema(
+      permanentUpgradeConfig.hoverAutoAttack.intervalMsByLevel.length - 1,
+    ),
+    equipmentSlots: boundedLevelSchema(
+      permanentUpgradeConfig.equipmentSlots.additionalSlotCountByLevel.length - 1,
+    ),
   })
+  .strict()
+  .superRefine(validatePermanentUpgradePrerequisite)
+
+const version3ProgressSchema = z
+  .object({
+    schemaVersion: z.literal(3),
+    completedRounds: z.number().int().nonnegative(),
+    gold: z.number().int().nonnegative(),
+    unlockedMimicIds: z.array(mimicIdSchema),
+    pendingUnlockMimicIds: z.array(mimicIdSchema),
+    latestRoundResult: roundResultSchema.nullable(),
+    permanentUpgrades: version3PermanentUpgradeLevelsSchema,
+  })
+  .strict()
+  .superRefine(validateProgression)
 
 export const progressSchema = z
   .object({
-    schemaVersion: z.literal(3),
+    schemaVersion: z.literal(4),
     completedRounds: z.number().int().nonnegative(),
     gold: z.number().int().nonnegative(),
     unlockedMimicIds: z.array(mimicIdSchema),
@@ -202,7 +215,7 @@ export function parseProgress(input: unknown): ProgressData {
   if (version1.success) {
     return progressSchema.parse({
       ...version1.data,
-      schemaVersion: 3,
+      schemaVersion: 4,
       latestRoundResult: null,
       permanentUpgrades: createInitialPermanentUpgradeLevels(),
     })
@@ -211,8 +224,23 @@ export function parseProgress(input: unknown): ProgressData {
   if (version2.success) {
     return progressSchema.parse({
       ...version2.data,
-      schemaVersion: 3,
+      schemaVersion: 4,
       permanentUpgrades: createInitialPermanentUpgradeLevels(),
+    })
+  }
+  const version3 = version3ProgressSchema.safeParse(input)
+  if (version3.success) {
+    const permanentUpgrades = {
+      hoverAutoAttackUnlock:
+        version3.data.permanentUpgrades.hoverAutoAttackUnlock,
+      hoverAutoAttackInterval:
+        version3.data.permanentUpgrades.hoverAutoAttackInterval,
+      equipmentSlots: version3.data.permanentUpgrades.equipmentSlots,
+    }
+    return progressSchema.parse({
+      ...version3.data,
+      schemaVersion: 4,
+      permanentUpgrades,
     })
   }
   return progressSchema.parse(input)
@@ -220,4 +248,23 @@ export function parseProgress(input: unknown): ProgressData {
 
 function boundedLevelSchema(maximumLevel: number): z.ZodNumber {
   return z.number().int().min(0).max(maximumLevel)
+}
+
+function validatePermanentUpgradePrerequisite(
+  levels: {
+    hoverAutoAttackUnlock: number
+    hoverAutoAttackInterval: number
+  },
+  context: z.RefinementCtx,
+): void {
+  if (
+    levels.hoverAutoAttackUnlock === 0 &&
+    levels.hoverAutoAttackInterval > 0
+  ) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Hover automatic attack interval requires its unlock',
+      path: ['hoverAutoAttackInterval'],
+    })
+  }
 }

@@ -77,9 +77,9 @@ describe('save repository', () => {
     const repository = createRepository()
     const initial = {
       ...(await repository.loadOrCreate()),
-      gold: permanentUpgradeConfig.weaponDamage.costGoldByLevel[0],
+      gold: permanentUpgradeConfig.hoverAutoAttack.unlockCostGold,
     }
-    const purchase = purchasePermanentUpgrade(initial, 'weaponDamage')
+    const purchase = purchasePermanentUpgrade(initial, 'hoverAutoAttackUnlock')
 
     expect(purchase.status).toBe('purchased')
     await repository.replace(purchase.progress)

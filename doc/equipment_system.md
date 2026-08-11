@@ -168,11 +168,11 @@
 | `basePriceGold` | 6 |
 | `rarityPriceMultipliers.N` | 1 |
 | `rarityPriceMultipliers.R` | 2 |
-| `rarityPriceMultipliers.SR` | 4.2 |
+| `rarityPriceMultipliers.SR` | 4.5 |
 | `rarityPriceMultipliers.SSR` | 8 |
 | `rarityPriceMultipliers.UR` | 16 |
 
-因此初版 `N` Sword 單件內部計價為 `6`，`SR` Ring 為 `25`。SR 倍率由固定 seed 全矩陣校準，避免全解鎖階段因高血量寶箱降低掉落件數而跌破出售收益占比門檻。這些單價只供核心計算與測試使用，不在結算 UI 顯示。未來委託可以用明確規則替代符合條件項目的普通出售小計，但不改寫普通稀有度價格。
+因此初版 `N` Sword 單件內部計價為 `6`，`SR` Ring 為 `27`。SR 倍率由固定 seed 全矩陣校準，避免全解鎖階段因高血量寶箱降低掉落件數而跌破出售收益占比門檻。這些單價只供核心計算與測試使用，不在結算 UI 顯示。未來委託可以用明確規則替代符合條件項目的普通出售小計，但不改寫普通稀有度價格。
 
 ### 9.3 結算顯示
 

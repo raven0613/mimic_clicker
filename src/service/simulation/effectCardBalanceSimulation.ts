@@ -13,9 +13,6 @@ import {
 } from '../game/effectCards/effectCardRules'
 import {
   collectMeteoriteHitTargets,
-  createMeteoriteLaunchOffsets,
-  createMeteoriteTrajectory,
-  selectMeteoriteLandingPoint,
 } from '../game/effectCards/meteoriteRules'
 import {
   collectThunderHitTargets,
@@ -34,6 +31,7 @@ import { isEffectiveClearRefillTarget } from '../game/clearRefill/clearRefillTar
 import { ClearRefillBalanceTracker } from './clearRefillBalanceSimulation'
 import { EffectChainBalanceTracker } from './effectChainBalanceSimulation'
 import { RingBalanceTracker } from './ringBalanceSimulation'
+import { createSimulatedMeteoriteImpacts } from './meteoriteBalanceSimulation'
 import type {
   BalanceCombatMimic,
   EffectCardCombatMetrics,
@@ -261,38 +259,15 @@ export function simulateEffectCardCombat(
   }
 
   const triggerMeteorite = (event: PendingCardEvent) => {
-    const offsets =
-      event.meteoriteLaunchOffsetsMs ??
-      createMeteoriteLaunchOffsets(
-        effectCardConfig.meteorite.initialMeteoriteCount,
-        random,
-      )
-    for (let index = 0; index < offsets.length; index += 1) {
-      const offset = offsets[index]
-      const launchAtMs = event.readyAtMs + offset
-      if (launchAtMs >= roundConfig.durationMs) continue
-      const landing =
-        event.meteoriteLandings?.[index] ??
-        selectMeteoriteLandingPoint(
-          { width: field.widthPixels, height: field.heightPixels },
-          random,
-        )
-      const trajectory = createMeteoriteTrajectory(
-        { width: field.widthPixels, height: field.heightPixels },
-        landing,
-      )
-      meteoritesLaunched += 1
-      enqueueEffectEvent({
-        kind: 'meteoriteImpact',
-        impactAtMs:
-          launchAtMs +
-          trajectory.distance /
-            effectCardConfig.meteorite.flightSpeedPixelsPerSecond *
-            1_000,
-        landing,
-        chainDepth: event.chainDepth,
-        chainId: event.chainId,
-      })
+    const impacts = createSimulatedMeteoriteImpacts({
+      event,
+      field: { width: field.widthPixels, height: field.heightPixels },
+      getActiveMimics,
+      random,
+    })
+    meteoritesLaunched += impacts.length
+    for (const impact of impacts) {
+      enqueueEffectEvent(impact)
     }
   }
 

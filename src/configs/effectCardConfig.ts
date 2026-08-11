@@ -36,6 +36,9 @@ export const effectCardConfig = {
     animationCycleDurationMs: 300,
     minimumLaunchIntervalMs: 200,
     maximumLaunchIntervalMs: 300,
+    maximumFirstTargetWaitMs: 300,
+    landingCandidateCount: 8,
+    minimumLandingDistanceMultiplier: 1,
     explosionAnimationDurationMs: 360,
     spriteSheet: {
       assetLabel: 'effects/meteorite',

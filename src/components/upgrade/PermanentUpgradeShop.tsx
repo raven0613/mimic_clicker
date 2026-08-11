@@ -17,7 +17,6 @@ interface PermanentUpgradeShopProps {
 }
 
 const laneLabels: Record<PermanentUpgradeShopOffer['lane'], string> = {
-  weaponDamage: '主武器攻擊力',
   hoverAutoAttack: '懸停自動攻擊',
   equipmentSlots: '裝備槽',
 }
@@ -91,7 +90,6 @@ function formatEffectValue(
   lane: PermanentUpgradeShopOffer['lane'],
   value: number | boolean,
 ): string {
-  if (lane === 'weaponDamage') return `${value} 傷害`
   if (lane === 'equipmentSlots') return `${value} 格`
   return value === false ? '未解鎖' : `每 ${(Number(value) / 1_000).toFixed(1)} 秒`
 }

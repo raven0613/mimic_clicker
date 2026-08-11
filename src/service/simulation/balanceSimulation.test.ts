@@ -31,6 +31,7 @@ describe('fixed-seed balance simulation', () => {
 
   it('keeps the initial vertical-slice balance inside provisional targets', () => {
     const report = firstReport
+    console.info(report.summary)
     const baseCaseCount =
       Object.keys(stagePools).length *
       Object.keys(balanceSimulationConfig.playerClickRatesPerSecond).length *
@@ -147,11 +148,36 @@ describe('fixed-seed balance simulation', () => {
         .maximumRefillTotalIncomeIncreaseRatio,
     )
     expect(
+      report.clearRefillMetrics.averageRefillsPerRound,
+    ).toBeGreaterThanOrEqual(
+      balanceSimulationConfig.targets.clearRefill.averageRefillsPerRound
+        .minimum,
+    )
+    expect(
+      report.clearRefillMetrics.averageRefillsPerRound,
+    ).toBeLessThanOrEqual(
+      balanceSimulationConfig.targets.clearRefill.averageRefillsPerRound
+        .maximum,
+    )
+    expect(
+      report.clearRefillMetrics.averageEffectiveTargetsAfterRefill,
+    ).toBeGreaterThanOrEqual(
+      balanceSimulationConfig.targets.clearRefill
+        .minimumAverageEffectiveTargetsAfterRefill,
+    )
+    expect(
+      report.clearRefillMetrics.p90RefillTargetShortfall,
+    ).toBeLessThanOrEqual(
+      balanceSimulationConfig.targets.clearRefill
+        .maximumP90RefillTargetShortfall,
+    )
+    expect(
       report.clearRefillMetrics.repeatedRefillsWithoutInterventionCount,
     ).toBeLessThanOrEqual(
       balanceSimulationConfig.targets.clearRefill
         .maximumRepeatedRefillsWithoutIntervention,
     )
+    expect(report.clearRefillMetrics.jackpotChaseRefillCount).toBe(0)
     expect(report.clearRefillMetrics.maximumDefeatsInEffectChain).toBeGreaterThan(0)
     expect(report.clearRefillMetrics.maximumEffectChainClearRatio).toBeGreaterThan(0)
     expect(report.clearRefillMetrics.refillEffectCardsGenerated.thunder).toBeGreaterThan(0)
@@ -163,6 +189,18 @@ describe('fixed-seed balance simulation', () => {
     expect(report.clearRefillMetrics.rare2SurvivorsAfterEffectResolution).toBeGreaterThan(0)
     expect(report.clearRefillMetrics.effectDefeatsAfterPriorWeaponDamage).toBeGreaterThan(0)
     const clearProfiles = report.clearRefillMetrics.profileAverageFullClears
+    expect(
+      report.clearRefillMetrics.averageFullClearsPerRound,
+    ).toBeGreaterThanOrEqual(
+      balanceSimulationConfig.targets.clearRefill.averageFullClearsPerRound
+        .minimum,
+    )
+    expect(
+      report.clearRefillMetrics.averageFullClearsPerRound,
+    ).toBeLessThanOrEqual(
+      balanceSimulationConfig.targets.clearRefill.averageFullClearsPerRound
+        .maximum,
+    )
     expect(clearProfiles.weak).toBeGreaterThanOrEqual(
       balanceSimulationConfig.targets.clearRefill
         .weakAverageFullClearsPerRound.minimum,
@@ -187,6 +225,8 @@ describe('fixed-seed balance simulation', () => {
       balanceSimulationConfig.targets.clearRefill
         .strongAverageFullClearsPerRound.maximum,
     )
+    expect(clearProfiles.standard).toBeGreaterThanOrEqual(clearProfiles.weak)
+    expect(clearProfiles.strong).toBeGreaterThanOrEqual(clearProfiles.standard)
     expect(report.equipmentMetrics.averageVisibleGeneratedPerRound.sword).toBeGreaterThan(0)
     expect(report.equipmentMetrics.averageVisibleGeneratedPerRound.ring).toBeGreaterThan(0)
     expect(report.equipmentMetrics.averageHiddenGeneratedPerRound.sword).toBeGreaterThan(0)
@@ -265,6 +305,5 @@ describe('fixed-seed balance simulation', () => {
     }
     expect(report.unfinishedRoundCount).toBe(0)
 
-    console.info(report.summary)
   })
 })

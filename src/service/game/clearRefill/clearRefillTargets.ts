@@ -41,3 +41,12 @@ export function isEffectiveClearRefillTarget(
     clearRefillConfig.minimumVisibleRatioForTarget
   )
 }
+
+export function calculateRefillSpawnCount(
+  effectiveTargetCount: number,
+): number {
+  return Math.max(
+    0,
+    clearRefillConfig.targetEffectiveCount - effectiveTargetCount,
+  )
+}

@@ -1,6 +1,7 @@
 import { spawnConfig } from '../../../configs/spawnConfig'
 import type { RuntimeMimicEntity } from '../runtimeTypes'
 import { ClearRefillController } from './clearRefillController'
+import type { ClearRefillDecision } from './clearRefillController'
 import { isEffectiveClearRefillTarget } from './clearRefillTargets'
 
 interface RuntimeClearRefillSystemInput {
@@ -11,7 +12,7 @@ interface RuntimeClearRefillSystemInput {
     remainingRoundMs: number
   }
   hasActiveEffectChain: () => boolean
-  refill: () => void
+  refill: (decision: ClearRefillDecision) => void
 }
 
 export class RuntimeClearRefillSystem {
@@ -23,9 +24,11 @@ export class RuntimeClearRefillSystem {
   }
 
   public update(deltaMs: number): void {
-    if (this.controller.update({ deltaMs, ...this.createFieldState() })) {
-      this.input.refill()
-    }
+    const decision = this.controller.update({
+      deltaMs,
+      ...this.createFieldState(),
+    })
+    if (decision) this.input.refill(decision)
   }
 
   public notifyCombatEntityRemovedByDefeat(): void {
@@ -45,7 +48,8 @@ export class RuntimeClearRefillSystem {
 
   private createFieldState(): {
     hasActiveEffectChain: boolean
-    hasEffectiveTarget: boolean
+    effectiveTargetCount: number
+    isJackpotChaseActive: boolean
     isRoundActive: boolean
     remainingRoundMs: number
   } {
@@ -53,14 +57,19 @@ export class RuntimeClearRefillSystem {
     return {
       ...round,
       hasActiveEffectChain: this.input.hasActiveEffectChain(),
-      hasEffectiveTarget: this.hasEffectiveTarget(),
+      effectiveTargetCount: this.countEffectiveTargets(),
+      isJackpotChaseActive: this.input.getEntities().some(
+        (entity) =>
+          entity.role === 'jackpot' &&
+          entity.jackpotLifecycle?.phase === 'chasing',
+      ),
     }
   }
 
-  private hasEffectiveTarget(): boolean {
+  private countEffectiveTargets(): number {
     const field = this.input.getFieldSize()
     const fieldBounds = { x: 0, y: 0, ...field }
-    return this.input.getEntities().some((entity) =>
+    return this.input.getEntities().filter((entity) =>
       isEffectiveClearRefillTarget(
         {
           bounds: {
@@ -75,6 +84,6 @@ export class RuntimeClearRefillSystem {
         },
         fieldBounds,
       ),
-    )
+    ).length
   }
 }

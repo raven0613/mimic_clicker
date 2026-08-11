@@ -2,7 +2,7 @@ import type { EquipmentId } from './equipmentConfig'
 import type { PermanentUpgradeLevels } from '../types/game'
 
 export const balanceSimulationConfig = {
-  configVersion: 'backpack-management-v16',
+  configVersion: 'low-density-meteor-v17',
   seeds: [11, 29, 47, 83, 131, 197, 263, 347, 431, 557, 683, 809],
   field: {
     widthPixels: 1_280,
@@ -42,51 +42,39 @@ export const balanceSimulationConfig = {
   >,
   permanentUpgradeProfiles: {
     allZero: {
-      levels: levels(0, 0, 0, 0),
-      initialLoadout: [],
-    },
-    weaponDamage1: {
-      levels: levels(1, 0, 0, 0),
-      initialLoadout: [],
-    },
-    weaponDamage2: {
-      levels: levels(2, 0, 0, 0),
-      initialLoadout: [],
-    },
-    weaponDamage3: {
-      levels: levels(3, 0, 0, 0),
+      levels: levels(0, 0, 0),
       initialLoadout: [],
     },
     hoverUnlocked: {
-      levels: levels(0, 1, 0, 0),
+      levels: levels(1, 0, 0),
       initialLoadout: [],
     },
     hoverInterval1: {
-      levels: levels(0, 1, 1, 0),
+      levels: levels(1, 1, 0),
       initialLoadout: [],
     },
     hoverInterval2: {
-      levels: levels(0, 1, 2, 0),
+      levels: levels(1, 2, 0),
       initialLoadout: [],
     },
     hoverInterval3: {
-      levels: levels(0, 1, 3, 0),
+      levels: levels(1, 3, 0),
       initialLoadout: [],
     },
     equipmentSlot3: {
-      levels: levels(0, 0, 0, 1),
+      levels: levels(0, 0, 1),
       initialLoadout: [],
     },
     equipmentSlot3SwordMix: {
-      levels: levels(0, 0, 0, 1),
+      levels: levels(0, 0, 1),
       initialLoadout: ['sword', 'sword', 'ring'],
     },
     equipmentSlot3RingMix: {
-      levels: levels(0, 0, 0, 1),
+      levels: levels(0, 0, 1),
       initialLoadout: ['ring', 'ring', 'sword'],
     },
     allMaximum: {
-      levels: levels(3, 1, 3, 1),
+      levels: levels(1, 3, 1),
       initialLoadout: [],
     },
   } satisfies Record<
@@ -109,7 +97,7 @@ export const balanceSimulationConfig = {
       maximumAutomaticDamageShare: 0.4,
       minimumMaximumProfileManualDamageShare: 0.55,
       maximumTotalIncomeIncreaseRatio: 1,
-      maximumFirstWeaponPurchaseRounds: 1,
+      maximumFirstHoverPurchaseRounds: 2,
       maximumDirectSlotPurchaseRounds: 6,
       maximumAllUpgradePurchaseRounds: 30,
     },
@@ -117,21 +105,23 @@ export const balanceSimulationConfig = {
       maximumP90EmptyFieldDurationMs: 150,
       maximumRefillTotalIncomeIncreaseRatio: 0.85,
       maximumRepeatedRefillsWithoutIntervention: 0,
-      weakAverageFullClearsPerRound: { minimum: 0, maximum: 0.5 },
-      standardAverageFullClearsPerRound: { minimum: 1.5, maximum: 4 },
-      strongAverageFullClearsPerRound: { minimum: 7, maximum: 10 },
+      averageRefillsPerRound: { minimum: 3, maximum: 8 },
+      minimumAverageEffectiveTargetsAfterRefill: 11.5,
+      maximumP90RefillTargetShortfall: 1,
+      averageFullClearsPerRound: { minimum: 0.001, maximum: 0.05 },
+      weakAverageFullClearsPerRound: { minimum: 0, maximum: 0.05 },
+      standardAverageFullClearsPerRound: { minimum: 0, maximum: 0.1 },
+      strongAverageFullClearsPerRound: { minimum: 0, maximum: 0.25 },
     },
   },
 } as const
 
 function levels(
-  weaponDamage: number,
   hoverAutoAttackUnlock: number,
   hoverAutoAttackInterval: number,
   equipmentSlots: number,
 ): PermanentUpgradeLevels {
   return {
-    weaponDamage,
     hoverAutoAttackUnlock,
     hoverAutoAttackInterval,
     equipmentSlots,

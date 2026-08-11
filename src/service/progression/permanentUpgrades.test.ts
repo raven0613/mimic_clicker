@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { permanentUpgradeConfig } from '../../configs/permanentUpgradeConfig'
+import { combatConfig } from '../../configs/combatConfig'
 import { equipmentConfig } from '../../configs/equipmentConfig'
+import { permanentUpgradeConfig } from '../../configs/permanentUpgradeConfig'
 import { createInitialProgress } from './createInitialProgress'
 import {
   createPermanentUpgradeSnapshot,
@@ -15,7 +16,7 @@ describe('permanent upgrades', () => {
     const progress = createInitialProgress()
 
     expect(createPermanentUpgradeSnapshot(progress.permanentUpgrades)).toEqual({
-      weaponDamage: permanentUpgradeConfig.weaponDamage.damageByLevel[0],
+      weaponDamage: combatConfig.initialWeaponDamage,
       hoverAutoAttack: {
         isUnlocked: false,
         intervalMs:
@@ -25,24 +26,10 @@ describe('permanent upgrades', () => {
     })
   })
 
-  it('purchases one weapon level without mutating the previous progress', () => {
-    const initial = {
-      ...createInitialProgress(),
-      gold: permanentUpgradeConfig.weaponDamage.costGoldByLevel[0],
-    }
-
-    const result = purchasePermanentUpgrade(initial, 'weaponDamage')
-
-    expect(result.status).toBe('purchased')
-    expect(result.progress.gold).toBe(0)
-    expect(result.progress.permanentUpgrades.weaponDamage).toBe(1)
-    expect(initial.permanentUpgrades.weaponDamage).toBe(0)
-  })
-
   it('keeps progress unchanged when gold is insufficient', () => {
     const initial = createInitialProgress()
 
-    const result = purchasePermanentUpgrade(initial, 'weaponDamage')
+    const result = purchasePermanentUpgrade(initial, 'hoverAutoAttackUnlock')
 
     expect(result).toEqual({ status: 'insufficientGold', progress: initial })
   })
@@ -76,13 +63,24 @@ describe('permanent upgrades', () => {
     }
     for (
       let level = 0;
-      level < permanentUpgradeConfig.weaponDamage.costGoldByLevel.length;
+      level < permanentUpgradeConfig.hoverAutoAttack.intervalCostGoldByLevel.length;
       level += 1
     ) {
-      progress = purchasePermanentUpgrade(progress, 'weaponDamage').progress
+      if (level === 0) {
+        progress = purchasePermanentUpgrade(
+          progress,
+          'hoverAutoAttackUnlock',
+        ).progress
+      }
+      progress = purchasePermanentUpgrade(
+        progress,
+        'hoverAutoAttackInterval',
+      ).progress
     }
 
-    expect(purchasePermanentUpgrade(progress, 'weaponDamage')).toEqual({
+    expect(
+      purchasePermanentUpgrade(progress, 'hoverAutoAttackInterval'),
+    ).toEqual({
       status: 'maximumLevel',
       progress,
     })
@@ -108,20 +106,20 @@ describe('permanent upgrades', () => {
     const initialOffers = getPermanentUpgradeShopOffers(progress)
 
     expect(initialOffers.map(({ costGold }) => costGold)).toEqual([
-      permanentUpgradeConfig.weaponDamage.costGoldByLevel[0],
       permanentUpgradeConfig.hoverAutoAttack.unlockCostGold,
       permanentUpgradeConfig.equipmentSlots.costGoldByLevel[0],
     ])
     expect(initialOffers[0]).toMatchObject({
-      currentValue: permanentUpgradeConfig.weaponDamage.damageByLevel[0],
-      nextValue: permanentUpgradeConfig.weaponDamage.damageByLevel[1],
+      purchaseId: 'hoverAutoAttackUnlock',
+      currentValue: false,
+      nextValue: permanentUpgradeConfig.hoverAutoAttack.intervalMsByLevel[0],
     })
 
     const unlocked = purchasePermanentUpgrade(
       progress,
       'hoverAutoAttackUnlock',
     ).progress
-    expect(getPermanentUpgradeShopOffers(unlocked)[1]).toMatchObject({
+    expect(getPermanentUpgradeShopOffers(unlocked)[0]).toMatchObject({
       purchaseId: 'hoverAutoAttackInterval',
       currentValue:
         permanentUpgradeConfig.hoverAutoAttack.intervalMsByLevel[0],

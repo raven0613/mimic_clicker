@@ -3,7 +3,7 @@ import { createInitialPermanentUpgradeLevels } from './permanentUpgrades'
 
 export function createInitialProgress(): ProgressData {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     completedRounds: 0,
     gold: 0,
     unlockedMimicIds: ['normal'],

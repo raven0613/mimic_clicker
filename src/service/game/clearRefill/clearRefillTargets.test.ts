@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { clearRefillConfig } from '../../../configs/clearRefillConfig'
 import {
+  calculateRefillSpawnCount,
   calculateVisibleIntersectionRatio,
   isEffectiveClearRefillTarget,
 } from './clearRefillTargets'
@@ -10,6 +11,26 @@ const fieldBounds = { x: 0, y: 0, width: 1_000, height: 700 }
 const fullyVisibleBounds = { x: 100, y: 100, width: 100, height: 100 }
 
 describe('clear-refill targets', () => {
+  it('keeps the refill target above its trigger threshold', () => {
+    expect(clearRefillConfig.targetEffectiveCount).toBeGreaterThan(
+      clearRefillConfig.triggerMaximumEffectiveTargetCount,
+    )
+  })
+
+  it('calculates only the number needed to reach the configured target', () => {
+    expect(
+      calculateRefillSpawnCount(
+        clearRefillConfig.triggerMaximumEffectiveTargetCount,
+      ),
+    ).toBe(
+      clearRefillConfig.targetEffectiveCount -
+        clearRefillConfig.triggerMaximumEffectiveTargetCount,
+    )
+    expect(
+      calculateRefillSpawnCount(clearRefillConfig.targetEffectiveCount),
+    ).toBe(0)
+  })
+
   it('calculates the card area intersecting the playable field', () => {
     expect(
       calculateVisibleIntersectionRatio(

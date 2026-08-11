@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
+import { combatConfig } from '../../configs/combatConfig'
+import { permanentUpgradeConfig } from '../../configs/permanentUpgradeConfig'
 import { equipmentConfig } from '../../configs/equipmentConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
-import { permanentUpgradeConfig } from '../../configs/permanentUpgradeConfig'
 import { roundConfig } from '../../configs/roundConfig'
 import { simulateEquipmentCombatRound } from './equipmentBalanceSimulation'
 import type { SimulatedAttachedContent } from './attachedCardSimulation'
@@ -105,7 +106,7 @@ describe('equipment combat balance simulation', () => {
     expect(metrics.swordAdditionalDamage).toBeGreaterThan(0)
   })
 
-  it('simulates permanent weapon damage without counting it as Sword damage', () => {
+  it('simulates fixed base weapon damage without counting it as Sword damage', () => {
     const metrics = simulateEquipmentCombatRound({
       ordinaryMimics: [createMimic(0, 0)],
       shellMimicId: 'normal',
@@ -114,10 +115,7 @@ describe('equipment combat balance simulation', () => {
       jackpotReward: mimicConfigs.normal.baseReward,
       jackpotCase: 'notRevealed',
       initialLoadout: [],
-      baseWeaponDamage:
-        permanentUpgradeConfig.weaponDamage.damageByLevel[
-          permanentUpgradeConfig.weaponDamage.damageByLevel.length - 1
-        ],
+      baseWeaponDamage: combatConfig.initialWeaponDamage,
       clickRate: balanceSimulationConfig.playerClickRatesPerSecond.target,
       accuracy: balanceSimulationConfig.accuracyRates.target,
       random: () => 0,

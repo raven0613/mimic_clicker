@@ -34,6 +34,46 @@ describe('progress schema migration', () => {
     expect(migrated.permanentUpgrades).toEqual(current.permanentUpgrades)
   })
 
+  it('migrates version 3 without refunding or retaining weapon damage levels', () => {
+    const current = createInitialProgress()
+    const migrated = parseProgress({
+      ...current,
+      schemaVersion: 3,
+      gold: 137,
+      permanentUpgrades: {
+        weaponDamage: 3,
+        hoverAutoAttackUnlock: 1,
+        hoverAutoAttackInterval: 2,
+        equipmentSlots: 1,
+      },
+    })
+
+    expect(migrated).toEqual({
+      ...current,
+      gold: 137,
+      permanentUpgrades: {
+        hoverAutoAttackUnlock: 1,
+        hoverAutoAttackInterval: 2,
+        equipmentSlots: 1,
+      },
+    })
+    expect(migrated.permanentUpgrades).not.toHaveProperty('weaponDamage')
+  })
+
+  it('rejects the removed weapon damage field in a current save', () => {
+    const current = createInitialProgress()
+
+    expect(() =>
+      parseProgress({
+        ...current,
+        permanentUpgrades: {
+          ...current.permanentUpgrades,
+          weaponDamage: 0,
+        },
+      }),
+    ).toThrow()
+  })
+
   it('rejects an automatic interval level before hover attack is unlocked', () => {
     const current = createInitialProgress()
 

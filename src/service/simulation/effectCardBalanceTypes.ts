@@ -56,7 +56,6 @@ export interface SimulatedTornadoTick {
 export interface SimulatedClearConfirmation {
   kind: 'clearConfirmation'
   confirmAtMs: number
-  clearedAtMs: number
   chainId: number | null
 }
 
@@ -100,7 +99,11 @@ export interface EffectCardCombatMetrics {
   refillEffectCardsGenerated: Record<EffectCardId, number>
   refillEquipmentCardsGenerated: Record<EquipmentId, number>
   emptyFieldDurationsMs: number[]
-  suppressedEmptyFieldCount: number
+  refillEffectiveTargetCountsBefore: number[]
+  refillEffectiveTargetCountsAfter: number[]
+  refillTargetShortfalls: number[]
+  jackpotChaseRefillCount: number
+  suppressedRefillCount: number
   repeatedRefillsWithoutInterventionCount: number
   rare1SurvivorsAfterEffectResolution: number
   rare2SurvivorsAfterEffectResolution: number

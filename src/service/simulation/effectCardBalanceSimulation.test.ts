@@ -186,7 +186,7 @@ describe('effect-card combat simulation', () => {
     expect(metrics.maximumEffectChainDepth).toBe(2)
   })
 
-  it('cancels a meteorite that would land after the round timer', () => {
+  it('cancels a first meteorite still waiting when the round ends', () => {
     const metrics = simulateEffectCardCombat(
       [createMimic(0, 640, [])],
       0,
@@ -203,7 +203,7 @@ describe('effect-card combat simulation', () => {
     )
 
     expect(metrics.cardsTriggered.meteorite).toBe(1)
-    expect(metrics.meteoritesLaunched).toBe(1)
+    expect(metrics.meteoritesLaunched).toBe(0)
     expect(metrics.meteoriteImpacts).toBe(0)
     expect(metrics.attackHits.meteorite).toBe(0)
   })
@@ -357,10 +357,37 @@ describe('effect-card combat simulation', () => {
     expect(metrics.fullClearCount).toBe(1)
     expect(metrics.refillCount).toBe(1)
     expect(metrics.refilledMimicCount).toBeGreaterThan(0)
+    expect(metrics.refillEffectiveTargetCountsBefore).toEqual([0])
+    expect(metrics.refillEffectiveTargetCountsAfter[0]).toBeLessThanOrEqual(
+      clearRefillConfig.targetEffectiveCount,
+    )
     expect(metrics.emptyFieldDurationsMs).toEqual([
       clearRefillConfig.confirmationDelayMs,
     ])
     expect(metrics.repeatedRefillsWithoutInterventionCount).toBe(0)
+  })
+
+  it('refills a confirmed low-density field without counting a full clear', () => {
+    const mimics = Array.from({ length: 4 }, (_, index) =>
+      createMimic(index, 100 + index * 180, []),
+    )
+    const metrics = simulateEffectCardCombat(
+      mimics,
+      ownerHitCount,
+      clickRate,
+      1,
+      () => 0.5,
+    )
+
+    expect(metrics.fullClearCount).toBe(0)
+    expect(metrics.refillCount).toBe(1)
+    expect(metrics.refillEffectiveTargetCountsBefore).toEqual([
+      clearRefillConfig.triggerMaximumEffectiveTargetCount,
+    ])
+    expect(metrics.refillEffectiveTargetCountsAfter[0]).toBeGreaterThan(
+      clearRefillConfig.triggerMaximumEffectiveTargetCount,
+    )
+    expect(metrics.emptyFieldDurationsMs).toEqual([])
   })
 
   it('includes configured Ring strikes in the clear-refill combat timeline', () => {

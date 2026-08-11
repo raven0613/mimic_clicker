@@ -38,6 +38,7 @@ interface CreateSimulatedFieldRefillInput {
   mimicPool: MimicId[]
   nextMimicId: number
   random: RandomSource
+  maximumNewMimicCount: number
 }
 
 export function createSimulatedFieldRefill(
@@ -56,7 +57,10 @@ export function createSimulatedFieldRefill(
         height: spawnConfig.cardHeightPixels,
       })),
       maximumPositionCount:
-        spawnConfig.maximumConcurrentMimics - input.activeMimics.length,
+        Math.min(
+          input.maximumNewMimicCount,
+          spawnConfig.maximumConcurrentMimics - input.activeMimics.length,
+        ),
     },
     input.random,
   )
@@ -86,12 +90,16 @@ export class ClearRefillBalanceTracker {
     ring: 0,
   }
   private readonly emptyFieldDurationsMs: number[] = []
+  private readonly refillEffectiveTargetCountsBefore: number[] = []
+  private readonly refillEffectiveTargetCountsAfter: number[] = []
+  private readonly refillTargetShortfalls: number[] = []
   private fullClearCount = 0
   private refillCount = 0
   private refilledMimicCount = 0
   private refilledDefeatCount = 0
   private refillOrdinaryIncome = 0
-  private suppressedEmptyFieldCount = 0
+  private jackpotChaseRefillCount = 0
+  private suppressedRefillCount = 0
   private repeatedRefillsWithoutInterventionCount = 0
   private pendingConfirmation = false
   private refillLocked = false
@@ -102,33 +110,40 @@ export class ClearRefillBalanceTracker {
   }
 
   public request(atMs: number, chainId: number | null): void {
+    const effectiveTargetCount = this.input.getEffectiveMimics(atMs).length
     if (
       this.pendingConfirmation ||
-      this.input.getEffectiveMimics(atMs).length > 0 ||
+      effectiveTargetCount >
+        clearRefillConfig.triggerMaximumEffectiveTargetCount ||
+      this.isJackpotChaseActive(atMs) ||
       roundConfig.durationMs - atMs < clearRefillConfig.minimumRemainingRoundMs
     ) {
       return
     }
     if (this.refillLocked) {
-      this.suppressedEmptyFieldCount += 1
+      this.suppressedRefillCount += 1
       return
     }
     this.pendingConfirmation = true
     this.input.enqueueEvent({
       kind: 'clearConfirmation',
       confirmAtMs: atMs + clearRefillConfig.confirmationDelayMs,
-      clearedAtMs: atMs,
       chainId,
     })
   }
 
   public processConfirmation(event: SimulatedClearConfirmation): void {
     this.pendingConfirmation = false
+    const effectiveTargetCount = this.input.getEffectiveMimics(
+      event.confirmAtMs,
+    ).length
     if (
       event.confirmAtMs >= roundConfig.durationMs ||
       roundConfig.durationMs - event.confirmAtMs <
         clearRefillConfig.minimumRemainingRoundMs ||
-      this.input.getEffectiveMimics(event.confirmAtMs).length > 0
+      effectiveTargetCount >
+        clearRefillConfig.triggerMaximumEffectiveTargetCount ||
+      this.isJackpotChaseActive(event.confirmAtMs)
     ) {
       return
     }
@@ -137,8 +152,9 @@ export class ClearRefillBalanceTracker {
       return
     }
 
-    this.fullClearCount += 1
-    if (event.chainId !== null) {
+    const isFullClear = effectiveTargetCount === 0
+    if (isFullClear) this.fullClearCount += 1
+    if (isFullClear && event.chainId !== null) {
       this.input.markEffectChainFullClear(event.chainId, event.confirmAtMs)
     }
 
@@ -150,6 +166,8 @@ export class ClearRefillBalanceTracker {
       nextMimicId:
         Math.max(-1, ...this.input.mimics.map((mimic) => mimic.id)) + 1,
       random: this.input.random,
+      maximumNewMimicCount:
+        clearRefillConfig.targetEffectiveCount - effectiveTargetCount,
     }).map<SimulatedCombatMimic>((mimic) => ({
       ...mimic,
       isRefill: true,
@@ -157,9 +175,20 @@ export class ClearRefillBalanceTracker {
       weaponDamageTaken: 0,
     }))
     this.input.mimics.push(...refillMimics)
+    const effectiveTargetCountAfter = this.input.getEffectiveMimics(
+      event.confirmAtMs,
+    ).length
     this.refillCount += 1
     this.refilledMimicCount += refillMimics.length
-    if (refillMimics.length > 0) {
+    this.refillEffectiveTargetCountsBefore.push(effectiveTargetCount)
+    this.refillEffectiveTargetCountsAfter.push(effectiveTargetCountAfter)
+    this.refillTargetShortfalls.push(
+      Math.max(
+        0,
+        clearRefillConfig.targetEffectiveCount - effectiveTargetCountAfter,
+      ),
+    )
+    if (isFullClear && refillMimics.length > 0) {
       this.emptyFieldDurationsMs.push(clearRefillConfig.confirmationDelayMs)
     }
     for (const mimic of refillMimics) this.recordGeneratedContent(mimic)
@@ -205,7 +234,11 @@ export class ClearRefillBalanceTracker {
     | 'refilledDefeatCount'
     | 'refilledMimicCount'
     | 'repeatedRefillsWithoutInterventionCount'
-    | 'suppressedEmptyFieldCount'
+    | 'refillEffectiveTargetCountsBefore'
+    | 'refillEffectiveTargetCountsAfter'
+    | 'refillTargetShortfalls'
+    | 'jackpotChaseRefillCount'
+    | 'suppressedRefillCount'
   > {
     const refilledByMimic = { normal: 0, rare1: 0, rare2: 0 }
     for (const mimic of this.input.mimics) {
@@ -213,6 +246,12 @@ export class ClearRefillBalanceTracker {
     }
     return {
       emptyFieldDurationsMs: this.emptyFieldDurationsMs,
+      refillEffectiveTargetCountsBefore:
+        this.refillEffectiveTargetCountsBefore,
+      refillEffectiveTargetCountsAfter:
+        this.refillEffectiveTargetCountsAfter,
+      refillTargetShortfalls: this.refillTargetShortfalls,
+      jackpotChaseRefillCount: this.jackpotChaseRefillCount,
       fullClearCount: this.fullClearCount,
       refillCount: this.refillCount,
       refillEffectCardsGenerated: this.refillEffectCardsGenerated,
@@ -223,7 +262,7 @@ export class ClearRefillBalanceTracker {
       refilledMimicCount: this.refilledMimicCount,
       repeatedRefillsWithoutInterventionCount:
         this.repeatedRefillsWithoutInterventionCount,
-      suppressedEmptyFieldCount: this.suppressedEmptyFieldCount,
+      suppressedRefillCount: this.suppressedRefillCount,
     }
   }
 
@@ -235,6 +274,15 @@ export class ClearRefillBalanceTracker {
     if (mimic.hiddenEquipmentId) {
       this.refillEquipmentCardsGenerated[mimic.hiddenEquipmentId] += 1
     }
+  }
+
+  private isJackpotChaseActive(atMs: number): boolean {
+    return this.input
+      .getActiveMimics(atMs)
+      .some(
+        (mimic) =>
+          mimic.role === 'jackpot' && mimic.jackpotPhase === 'chasing',
+      )
   }
 }
 
