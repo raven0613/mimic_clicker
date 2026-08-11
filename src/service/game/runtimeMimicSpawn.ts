@@ -16,6 +16,11 @@ import type { LoadedAttachedCardTextures } from './assets/runtimeAssets'
 import { createRuntimeMimicEntity } from './runtimeEntityFactory'
 import type { LoadedMimicTextures, RuntimeMimicEntity } from './runtimeTypes'
 
+type RuntimeHoverChangedCallback = (
+  entity: RuntimeMimicEntity,
+  pointerPosition: Vector2 | null,
+) => void
+
 interface CreatePositionedRuntimeMimicInput {
   runtimeId: number
   mimicId: MimicId
@@ -28,7 +33,7 @@ interface CreatePositionedRuntimeMimicInput {
   random: RandomSource
   playRefillEntrance: boolean
   onAttack: (entity: RuntimeMimicEntity, position: Vector2) => void
-  onHoverChanged: (entity: RuntimeMimicEntity, hovered: boolean) => void
+  onHoverChanged: RuntimeHoverChangedCallback
 }
 
 interface RuntimeSpawnContext {
@@ -39,7 +44,7 @@ interface RuntimeSpawnContext {
   attachedCardTextures: LoadedAttachedCardTextures
   random: RandomSource
   onAttack: (entity: RuntimeMimicEntity, position: Vector2) => void
-  onHoverChanged: (entity: RuntimeMimicEntity, hovered: boolean) => void
+  onHoverChanged: RuntimeHoverChangedCallback
 }
 
 interface CreateTopEdgeRuntimeMimicInput extends RuntimeSpawnContext {
@@ -63,7 +68,7 @@ interface RuntimeMimicSpawnerInput {
   attachedCardTextures: LoadedAttachedCardTextures
   random: RandomSource
   onAttack: (entity: RuntimeMimicEntity, position: Vector2) => void
-  onHoverChanged: (entity: RuntimeMimicEntity, hovered: boolean) => void
+  onHoverChanged: RuntimeHoverChangedCallback
   onSpawn: (entity: RuntimeMimicEntity) => void
 }
 

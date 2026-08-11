@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { equipmentDefinitions } from '../../configs/equipmentConfig'
 import { permanentUpgradeConfig } from '../../configs/permanentUpgradeConfig'
+import { weaponConfig, type WeaponId } from '../../configs/weaponConfig'
 import { mimicIds, type ProgressData } from '../../types/game'
 import { createInitialPermanentUpgradeLevels } from '../progression/permanentUpgrades'
 
@@ -10,6 +11,12 @@ const equipmentIdSchema = z.enum(
   equipmentDefinitions.map(({ id }) => id) as [
     (typeof equipmentDefinitions)[number]['id'],
     ...(typeof equipmentDefinitions)[number]['id'][],
+  ],
+)
+const weaponIdSchema = z.enum(
+  weaponConfig.definitions.map(({ id }) => id) as [
+    WeaponId,
+    ...WeaponId[],
   ],
 )
 
@@ -135,7 +142,7 @@ const version3ProgressSchema = z
   .strict()
   .superRefine(validateProgression)
 
-export const progressSchema = z
+const version4ProgressSchema = z
   .object({
     schemaVersion: z.literal(4),
     completedRounds: z.number().int().nonnegative(),
@@ -147,6 +154,22 @@ export const progressSchema = z
   })
   .strict()
   .superRefine(validateProgression)
+
+export const progressSchema = z
+  .object({
+    schemaVersion: z.literal(5),
+    completedRounds: z.number().int().nonnegative(),
+    gold: z.number().int().nonnegative(),
+    unlockedMimicIds: z.array(mimicIdSchema),
+    pendingUnlockMimicIds: z.array(mimicIdSchema),
+    latestRoundResult: roundResultSchema.nullable(),
+    permanentUpgrades: permanentUpgradeLevelsSchema,
+    ownedWeaponIds: z.array(weaponIdSchema),
+    equippedWeaponId: weaponIdSchema,
+  })
+  .strict()
+  .superRefine(validateProgression)
+  .superRefine(validateWeaponProgression)
 
 function validateProgression(
   progress: {
@@ -213,7 +236,7 @@ function validateProgression(
 export function parseProgress(input: unknown): ProgressData {
   const version1 = version1ProgressSchema.safeParse(input)
   if (version1.success) {
-    return progressSchema.parse({
+    return migrateVersion4Progress({
       ...version1.data,
       schemaVersion: 4,
       latestRoundResult: null,
@@ -222,7 +245,7 @@ export function parseProgress(input: unknown): ProgressData {
   }
   const version2 = version2ProgressSchema.safeParse(input)
   if (version2.success) {
-    return progressSchema.parse({
+    return migrateVersion4Progress({
       ...version2.data,
       schemaVersion: 4,
       permanentUpgrades: createInitialPermanentUpgradeLevels(),
@@ -237,13 +260,26 @@ export function parseProgress(input: unknown): ProgressData {
         version3.data.permanentUpgrades.hoverAutoAttackInterval,
       equipmentSlots: version3.data.permanentUpgrades.equipmentSlots,
     }
-    return progressSchema.parse({
+    return migrateVersion4Progress({
       ...version3.data,
       schemaVersion: 4,
       permanentUpgrades,
     })
   }
+  const version4 = version4ProgressSchema.safeParse(input)
+  if (version4.success) return migrateVersion4Progress(version4.data)
   return progressSchema.parse(input)
+}
+
+function migrateVersion4Progress(
+  progress: z.infer<typeof version4ProgressSchema>,
+): ProgressData {
+  return progressSchema.parse({
+    ...progress,
+    schemaVersion: 5,
+    ownedWeaponIds: [weaponConfig.initialWeaponId],
+    equippedWeaponId: weaponConfig.initialWeaponId,
+  })
 }
 
 function boundedLevelSchema(maximumLevel: number): z.ZodNumber {
@@ -265,6 +301,38 @@ function validatePermanentUpgradePrerequisite(
       code: 'custom',
       message: 'Hover automatic attack interval requires its unlock',
       path: ['hoverAutoAttackInterval'],
+    })
+  }
+}
+
+function validateWeaponProgression(
+  progress: {
+    ownedWeaponIds: WeaponId[]
+    equippedWeaponId: WeaponId
+  },
+  context: z.RefinementCtx,
+): void {
+  if (
+    new Set(progress.ownedWeaponIds).size !== progress.ownedWeaponIds.length
+  ) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Owned weapon ids must be unique',
+      path: ['ownedWeaponIds'],
+    })
+  }
+  if (!progress.ownedWeaponIds.includes(weaponConfig.initialWeaponId)) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Owned weapons must include the initial weapon',
+      path: ['ownedWeaponIds'],
+    })
+  }
+  if (!progress.ownedWeaponIds.includes(progress.equippedWeaponId)) {
+    context.addIssue({
+      code: 'custom',
+      message: 'The equipped weapon must be owned',
+      path: ['equippedWeaponId'],
     })
   }
 }

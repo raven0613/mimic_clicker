@@ -1,8 +1,9 @@
 import type { EquipmentId } from './equipmentConfig'
-import type { PermanentUpgradeLevels } from '../types/game'
+import type { WeaponId } from './weaponConfig'
+import type { MimicId, PermanentUpgradeLevels } from '../types/game'
 
 export const balanceSimulationConfig = {
-  configVersion: 'low-density-meteor-v17',
+  configVersion: 'weapon-shop-v18',
   seeds: [11, 29, 47, 83, 131, 197, 263, 347, 431, 557, 683, 809],
   field: {
     widthPixels: 1_280,
@@ -93,6 +94,30 @@ export const balanceSimulationConfig = {
     },
     maximumAverageEquipmentActivationTimeMs: 3_500,
     equipmentSaleIncomeShare: { minimum: 0.15, maximum: 0.25 },
+    weapons: {
+      hitCountMilestones: [
+        milestone(
+          'rare1',
+          'travelerHammer',
+          'lockbreakerHammer',
+          'normalRare1',
+          5,
+          2,
+        ),
+        milestone(
+          'rare2',
+          'lockbreakerHammer',
+          'runicSiegeHammer',
+          'allMimics',
+          5,
+          2,
+        ),
+      ],
+      firstPurchaseRounds: { minimum: 4, maximum: 8 },
+      secondPurchaseAdditionalRounds: { minimum: 8, maximum: 16 },
+      combatIncomeIncreaseRatio: { minimum: 0, maximum: 1.5 },
+      milestoneCombatIncomeIncreaseRatio: { minimum: 0.2, maximum: 1.5 },
+    },
     permanentUpgrades: {
       maximumAutomaticDamageShare: 0.4,
       minimumMaximumProfileManualDamageShare: 0.55,
@@ -105,7 +130,7 @@ export const balanceSimulationConfig = {
       maximumP90EmptyFieldDurationMs: 150,
       maximumRefillTotalIncomeIncreaseRatio: 0.85,
       maximumRepeatedRefillsWithoutIntervention: 0,
-      averageRefillsPerRound: { minimum: 3, maximum: 8 },
+      averageRefillsPerRound: { minimum: 3, maximum: 11 },
       minimumAverageEffectiveTargetsAfterRefill: 11.5,
       maximumP90RefillTargetShortfall: 1,
       averageFullClearsPerRound: { minimum: 0.001, maximum: 0.05 },
@@ -115,6 +140,24 @@ export const balanceSimulationConfig = {
     },
   },
 } as const
+
+function milestone(
+  mimicId: MimicId,
+  oldWeaponId: WeaponId,
+  newWeaponId: WeaponId,
+  incomeStage: 'normalRare1' | 'allMimics',
+  oldWeaponHitCount: number,
+  newWeaponHitCount: number,
+) {
+  return {
+    mimicId,
+    oldWeaponId,
+    newWeaponId,
+    incomeStage,
+    oldWeaponHitCount,
+    newWeaponHitCount,
+  }
+}
 
 function levels(
   hoverAutoAttackUnlock: number,

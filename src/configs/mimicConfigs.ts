@@ -14,12 +14,12 @@ export const mimicConfigs: Record<MimicId, MimicConfig> = {
   },
   rare1: {
     maximumHealth: 50,
-    baseReward: 14,
+    baseReward: 18,
     spawnWeight: 25,
   },
   rare2: {
-    maximumHealth: 100,
-    baseReward: 30,
+    maximumHealth: 125,
+    baseReward: 50,
     spawnWeight: 10,
   },
 }

@@ -18,7 +18,7 @@ export class HitEffectSystem {
   }
 
   public add(position: Vector2, tintColor?: string): void {
-    const config = animationConfig.manualHitEffect
+    const config = animationConfig.weaponHitEffect
     const displaySize = calculateSpriteDisplaySize(
       config.spriteSheet.frameWidthPixels,
       config.spriteSheet.frameHeightPixels,

@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
-import { combatConfig } from '../../configs/combatConfig'
+import { weaponConfig } from '../../configs/weaponConfig'
 import { runPermanentUpgradeBalanceSimulation } from './permanentUpgradeBalanceSimulation'
 
 describe('permanent upgrade fixed-seed simulation', () => {
@@ -17,7 +17,8 @@ describe('permanent upgrade fixed-seed simulation', () => {
       Object.keys(balanceSimulationConfig.accuracyRates).length *
       balanceSimulationConfig.jackpotCases.length *
       balanceSimulationConfig.seeds.length *
-      3
+      3 *
+      weaponConfig.definitions.length
 
     expect(report.caseCount).toBe(
       matrixCasesPerProfile *
@@ -28,9 +29,13 @@ describe('permanent upgrade fixed-seed simulation', () => {
     }
   })
 
-  it('keeps base weapon damage fixed for every permanent profile', () => {
+  it('keeps each configured weapon damage fixed across permanent profiles', () => {
     for (const profile of Object.values(report.profiles)) {
-      expect(profile.baseWeaponDamage).toBe(combatConfig.initialWeaponDamage)
+      for (const weapon of weaponConfig.definitions) {
+        expect(profile.baseWeaponDamageByWeapon[weapon.id]).toBe(
+          weapon.baseDamage,
+        )
+      }
     }
   })
 
@@ -82,9 +87,39 @@ describe('permanent upgrade fixed-seed simulation', () => {
       report.purchaseRoutes.directSlot.purchasedAtRound[0].round,
     ).toBeLessThanOrEqual(targets.maximumDirectSlotPurchaseRounds)
     for (const route of Object.values(report.purchaseRoutes)) {
+      expect(route.sampleCount).toBe(balanceSimulationConfig.seeds.length)
+      expect(route.totalRoundDistribution.p10).toBeLessThanOrEqual(
+        route.totalRoundDistribution.p50,
+      )
+      expect(route.totalRoundDistribution.p50).toBeLessThanOrEqual(
+        route.totalRoundDistribution.p90,
+      )
       expect(route.totalRounds).toBeLessThanOrEqual(
         targets.maximumAllUpgradePurchaseRounds,
       )
     }
+    const weaponRoute = report.purchaseRoutes.weaponFirst
+    expect(
+      weaponRoute.firstWeaponPurchaseRoundDistribution.average,
+    ).toBeGreaterThanOrEqual(
+      balanceSimulationConfig.targets.weapons.firstPurchaseRounds.minimum,
+    )
+    expect(
+      weaponRoute.firstWeaponPurchaseRoundDistribution.average,
+    ).toBeLessThanOrEqual(
+      balanceSimulationConfig.targets.weapons.firstPurchaseRounds.maximum,
+    )
+    expect(
+      weaponRoute.secondWeaponAdditionalRoundsDistribution.average,
+    ).toBeGreaterThanOrEqual(
+      balanceSimulationConfig.targets.weapons.secondPurchaseAdditionalRounds
+        .minimum,
+    )
+    expect(
+      weaponRoute.secondWeaponAdditionalRoundsDistribution.average,
+    ).toBeLessThanOrEqual(
+      balanceSimulationConfig.targets.weapons.secondPurchaseAdditionalRounds
+        .maximum,
+    )
   })
 })

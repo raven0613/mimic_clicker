@@ -5,7 +5,7 @@ import { calculateSpriteDisplaySize } from './spriteDisplaySize'
 
 describe('sprite display size', () => {
   it('scales both frame dimensions without changing the source frame', () => {
-    const config = animationConfig.manualHitEffect
+    const config = animationConfig.weaponHitEffect
 
     expect(
       calculateSpriteDisplaySize(

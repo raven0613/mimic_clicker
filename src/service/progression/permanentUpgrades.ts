@@ -1,4 +1,3 @@
-import { combatConfig } from '../../configs/combatConfig'
 import { equipmentConfig } from '../../configs/equipmentConfig'
 import { permanentUpgradeConfig } from '../../configs/permanentUpgradeConfig'
 import type {
@@ -46,7 +45,6 @@ export function createPermanentUpgradeSnapshot(
   levels: PermanentUpgradeLevels,
 ): PermanentUpgradeSnapshot {
   return {
-    weaponDamage: combatConfig.initialWeaponDamage,
     hoverAutoAttack: {
       isUnlocked: getLevelValue(
         [false, true],

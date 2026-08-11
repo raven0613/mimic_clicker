@@ -109,7 +109,7 @@ export class RuntimeEffectSystems {
     this.death.add(input)
   }
 
-  public addManualHit(position: Vector2, tintColor?: string): void {
+  public addWeaponHit(position: Vector2, tintColor?: string): void {
     this.hit.add(position, tintColor)
   }
 

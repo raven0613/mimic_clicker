@@ -1,4 +1,5 @@
 import type { EquipmentId } from '../configs/equipmentConfig'
+import type { WeaponId } from '../configs/weaponConfig'
 
 export const mimicIds = ['normal', 'rare1', 'rare2'] as const
 
@@ -19,12 +20,20 @@ export interface PermanentUpgradeLevels {
 }
 
 export interface PermanentUpgradeSnapshot {
-  weaponDamage: number
   hoverAutoAttack: {
     isUnlocked: boolean
     intervalMs: number
   }
   equipmentSlotCount: number
+}
+
+export interface WeaponSnapshot {
+  id: WeaponId
+  baseDamage: number
+}
+
+export interface RoundProgressionSnapshot extends PermanentUpgradeSnapshot {
+  weapon: WeaponSnapshot
 }
 
 export type JackpotOutcome =
@@ -50,13 +59,15 @@ export interface RoundResult {
 }
 
 export interface ProgressData {
-  schemaVersion: 4
+  schemaVersion: 5
   completedRounds: number
   gold: number
   unlockedMimicIds: MimicId[]
   pendingUnlockMimicIds: MimicId[]
   latestRoundResult: RoundResult | null
   permanentUpgrades: PermanentUpgradeLevels
+  ownedWeaponIds: WeaponId[]
+  equippedWeaponId: WeaponId
 }
 
 export interface RectangleBounds {

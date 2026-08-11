@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { weaponConfig } from '../../configs/weaponConfig'
 import { createInitialProgress } from '../progression/createInitialProgress'
 import { parseProgress } from './progressSchema'
 
@@ -37,9 +38,12 @@ describe('progress schema migration', () => {
   it('migrates version 3 without refunding or retaining weapon damage levels', () => {
     const current = createInitialProgress()
     const migrated = parseProgress({
-      ...current,
       schemaVersion: 3,
+      completedRounds: current.completedRounds,
       gold: 137,
+      unlockedMimicIds: current.unlockedMimicIds,
+      pendingUnlockMimicIds: current.pendingUnlockMimicIds,
+      latestRoundResult: current.latestRoundResult,
       permanentUpgrades: {
         weaponDamage: 3,
         hoverAutoAttackUnlock: 1,
@@ -58,6 +62,23 @@ describe('progress schema migration', () => {
       },
     })
     expect(migrated.permanentUpgrades).not.toHaveProperty('weaponDamage')
+  })
+
+  it('migrates version 4 with only the initial weapon owned and equipped', () => {
+    const current = createInitialProgress()
+    const migrated = parseProgress({
+      schemaVersion: 4,
+      completedRounds: current.completedRounds,
+      gold: current.gold,
+      unlockedMimicIds: current.unlockedMimicIds,
+      pendingUnlockMimicIds: current.pendingUnlockMimicIds,
+      latestRoundResult: current.latestRoundResult,
+      permanentUpgrades: current.permanentUpgrades,
+    })
+
+    expect(migrated.schemaVersion).toBe(current.schemaVersion)
+    expect(migrated.ownedWeaponIds).toEqual([weaponConfig.initialWeaponId])
+    expect(migrated.equippedWeaponId).toBe(weaponConfig.initialWeaponId)
   })
 
   it('rejects the removed weapon damage field in a current save', () => {
@@ -86,5 +107,34 @@ describe('progress schema migration', () => {
         },
       }),
     ).toThrow()
+  })
+
+  it('rejects duplicate, unknown, missing-initial, and unowned equipped weapons', () => {
+    const current = createInitialProgress()
+    const secondWeaponId = weaponConfig.definitions[1].id
+
+    for (const weaponProgress of [
+      {
+        ownedWeaponIds: [
+          weaponConfig.initialWeaponId,
+          weaponConfig.initialWeaponId,
+        ],
+        equippedWeaponId: weaponConfig.initialWeaponId,
+      },
+      {
+        ownedWeaponIds: ['missingWeapon'],
+        equippedWeaponId: 'missingWeapon',
+      },
+      {
+        ownedWeaponIds: [secondWeaponId],
+        equippedWeaponId: secondWeaponId,
+      },
+      {
+        ownedWeaponIds: [weaponConfig.initialWeaponId],
+        equippedWeaponId: secondWeaponId,
+      },
+    ]) {
+      expect(() => parseProgress({ ...current, ...weaponProgress })).toThrow()
+    }
   })
 })

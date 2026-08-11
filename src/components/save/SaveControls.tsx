@@ -3,12 +3,18 @@ import { useState } from 'react'
 import { saveConfig } from '../../configs/saveConfig'
 
 interface SaveControlsProps {
+  disabled: boolean
   onExport: () => string
   onImport: (code: string) => Promise<void>
   onReset: () => Promise<void>
 }
 
-export function SaveControls({ onExport, onImport, onReset }: SaveControlsProps) {
+export function SaveControls({
+  disabled,
+  onExport,
+  onImport,
+  onReset,
+}: SaveControlsProps) {
   const [exportCode, setExportCode] = useState('')
   const [importCode, setImportCode] = useState('')
   const [message, setMessage] = useState('')
@@ -47,7 +53,12 @@ export function SaveControls({ onExport, onImport, onReset }: SaveControlsProps)
     <details className="save-controls">
       <summary>存檔轉移與重置</summary>
       <div className="save-controls__body">
-        <button type="button" className="button button--quiet" onClick={() => setExportCode(onExport())}>
+        <button
+          type="button"
+          className="button button--quiet"
+          disabled={disabled || busy}
+          onClick={() => setExportCode(onExport())}
+        >
           產生匯出碼
         </button>
         {exportCode && <textarea readOnly value={exportCode} aria-label="進度匯出碼" />}
@@ -61,7 +72,7 @@ export function SaveControls({ onExport, onImport, onReset }: SaveControlsProps)
         <button
           type="button"
           className="button button--quiet"
-          disabled={busy || importCode.trim().length === 0}
+          disabled={disabled || busy || importCode.trim().length === 0}
           onClick={() => void handleImport()}
         >
           匯入並取代進度
@@ -69,7 +80,7 @@ export function SaveControls({ onExport, onImport, onReset }: SaveControlsProps)
         <button
           type="button"
           className="button button--danger"
-          disabled={busy}
+          disabled={disabled || busy}
           onClick={() => void handleReset()}
         >
           Reset 全部進度

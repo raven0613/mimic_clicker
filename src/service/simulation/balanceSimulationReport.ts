@@ -1,5 +1,4 @@
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
-import { combatConfig } from '../../configs/combatConfig'
 import type { EquipmentId } from '../../configs/equipmentConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import type { MimicId } from '../../types/game'
@@ -18,6 +17,12 @@ import {
   createEquipmentManagementBalanceMetrics,
   type EquipmentManagementBalanceMetrics,
 } from './equipmentManagementBalanceReport'
+import { getInitialWeaponDefinition } from '../progression/weaponProgression'
+import {
+  createWeaponBalanceMetrics,
+  summarizeWeaponBalanceMetrics,
+  type WeaponBalanceMetrics,
+} from './weaponBalanceReport'
 
 export interface BalanceSimulationReport {
   configVersion: string
@@ -33,7 +38,7 @@ export interface BalanceSimulationReport {
   stageAverageInitialFieldMimics: Record<StageKey, number>
   stageAverageGeneratedMimics: Record<StageKey, number>
   stageAverageDefeatedMimics: Record<StageKey, number>
-  mimicDefeatTimeMs: Record<MimicId, { average: number; p90: number }>
+  weaponMetrics: WeaponBalanceMetrics
   jackpotMetrics: {
     averageOpportunities: number
     revealRate: number
@@ -81,7 +86,10 @@ export function createBalanceSimulationReport(
   rounds: readonly SimulatedRound[],
   stagePools: Record<StageKey, MimicId[]>,
 ): BalanceSimulationReport {
-  const baselineRounds = rounds.filter(
+  const initialWeaponRounds = rounds.filter(
+    (round) => round.weaponId === getInitialWeaponDefinition().id,
+  )
+  const baselineRounds = initialWeaponRounds.filter(
     (round) => round.backpackManagementPolicy === 'noSwitching',
   )
   const stageAverages = calculateStageAverages(baselineRounds, stagePools)
@@ -133,7 +141,10 @@ export function createBalanceSimulationReport(
       targetDefeatRounds.map((round) => Number(round.jackpotDefeated)),
     ),
     ...stageAverages,
-    mimicDefeatTimeMs: calculateMimicDefeatTimes(),
+    weaponMetrics: createWeaponBalanceMetrics(
+      rounds,
+      Object.keys(stagePools) as StageKey[],
+    ),
     jackpotMetrics: {
       averageOpportunities: average(
         baselineRounds.map((round) => round.jackpotOpportunities),
@@ -190,7 +201,7 @@ export function createBalanceSimulationReport(
       ),
     },
     clearRefillMetrics: createClearRefillBalanceMetrics(baselineRounds),
-    equipmentMetrics: createEquipmentMetrics(rounds),
+    equipmentMetrics: createEquipmentMetrics(initialWeaponRounds),
     unfinishedRoundCount: rounds.filter((round) => !round.finished).length,
     summary: '',
   }
@@ -380,25 +391,6 @@ function calculateMaximumSpawnShareDeviation(
   return maximumDeviation
 }
 
-function calculateMimicDefeatTimes(): BalanceSimulationReport['mimicDefeatTimeMs'] {
-  const result = {} as BalanceSimulationReport['mimicDefeatTimeMs']
-  for (const mimicId of Object.keys(mimicConfigs) as MimicId[]) {
-    const times: number[] = []
-    for (const clickRate of Object.values(
-      balanceSimulationConfig.playerClickRatesPerSecond,
-    )) {
-      for (const accuracy of Object.values(balanceSimulationConfig.accuracyRates)) {
-        const hits = Math.ceil(
-          mimicConfigs[mimicId].maximumHealth / combatConfig.initialWeaponDamage,
-        )
-        times.push((hits / (clickRate * accuracy)) * 1_000)
-      }
-    }
-    result[mimicId] = { average: average(times), p90: percentile(times, 0.9) }
-  }
-  return result
-}
-
 function sumEffectMetric(
   rounds: readonly SimulatedRound[],
   select: (round: SimulatedRound) => Record<EffectCardId, number>,
@@ -463,6 +455,7 @@ function createSummary(report: BalanceSimulationReport): string {
     `management Jackpot defeat ${Object.values(equipment.management.jackpotDefeatRateByPolicy).map((value) => `${(value * 100).toFixed(1)}%`).join(' → ')}`,
     `loadout damage sword×2 ${equipment.averageAdditionalDamageByLoadout.duplicateSword.sword.toFixed(1)} / ring×2 ${equipment.averageAdditionalDamageByLoadout.duplicateRing.ring.toFixed(1)}`,
     `combat income ${Object.values(report.stageAverageCombatIncome).map((value) => value.toFixed(1)).join(' → ')}`,
+    summarizeWeaponBalanceMetrics(report.weaponMetrics),
     `equipment sale ${Object.values(report.stageAverageEquipmentSaleIncome).map((value) => value.toFixed(1)).join(' → ')}`,
     `sale share ${Object.values(report.stageEquipmentSaleIncomeShare).map((value) => `${(value * 100).toFixed(1)}%`).join(' → ')}`,
     `total income ${Object.values(report.stageAverageTotalIncome).map((value) => value.toFixed(1)).join(' → ')}`,
@@ -471,11 +464,6 @@ function createSummary(report: BalanceSimulationReport): string {
 
 function average(values: number[]): number {
   return sum(values) / values.length
-}
-
-function percentile(values: number[], ratio: number): number {
-  const sorted = [...values].sort((first, second) => first - second)
-  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * ratio))]
 }
 
 function sum(values: readonly number[]): number {

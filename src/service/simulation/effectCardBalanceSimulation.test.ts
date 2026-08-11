@@ -21,6 +21,9 @@ import {
   simulateEffectCardCombat,
   type BalanceCombatMimic,
 } from './effectCardBalanceSimulation'
+import { getInitialWeaponDefinition } from '../progression/weaponProgression'
+
+const initialWeaponDamage = getInitialWeaponDefinition().baseDamage
 
 function createMimic(
   id: number,
@@ -49,7 +52,7 @@ describe('effect-card combat simulation', () => {
   const clickRate =
     1_000 / combatConfig.minimumWeaponDamageIntervalPerTargetMs
   const ownerHitCount = Math.ceil(
-    mimicConfigs.normal.maximumHealth / combatConfig.initialWeaponDamage,
+    mimicConfigs.normal.maximumHealth / initialWeaponDamage,
   )
   const separatedDistance =
     effectCardConfig.thunder.spriteSheet.frameWidthPixels +
@@ -299,7 +302,7 @@ describe('effect-card combat simulation', () => {
     const attemptsRequired = requiredAcceptedHits * 2 - 1
     const createIntervalTarget = () => {
       const target = createMimic(0, 100, [])
-      target.health = combatConfig.initialWeaponDamage * requiredAcceptedHits
+      target.health = initialWeaponDamage * requiredAcceptedHits
       return target
     }
     const beforeEnoughAcceptedHits = simulateEffectCardCombat(
@@ -326,7 +329,7 @@ describe('effect-card combat simulation', () => {
       combatConfig.minimumWeaponDamageIntervalPerTargetMs / 2
     const target = createMimic(0, 100, [])
     target.health =
-      combatConfig.initialWeaponDamage + calculateInitialThunderDamage()
+      initialWeaponDamage + calculateInitialThunderDamage()
     const metrics = simulateEffectCardCombat(
       [target],
       2,
@@ -368,8 +371,12 @@ describe('effect-card combat simulation', () => {
   })
 
   it('refills a confirmed low-density field without counting a full clear', () => {
-    const mimics = Array.from({ length: 4 }, (_, index) =>
-      createMimic(index, 100 + index * 180, []),
+    const mimics = Array.from(
+      {
+        length:
+          clearRefillConfig.triggerMaximumEffectiveTargetCount + 1,
+      },
+      (_, index) => createMimic(index, 100 + index * 180, []),
     )
     const metrics = simulateEffectCardCombat(
       mimics,
@@ -394,7 +401,7 @@ describe('effect-card combat simulation', () => {
     const createRingTarget = () => {
       const target = createMimic(0, 100, [])
       target.health =
-        combatConfig.initialWeaponDamage *
+        initialWeaponDamage *
         (equipmentConfig.ring.acceptedManualHitsPerTrigger + 1)
       return target
     }
@@ -413,7 +420,7 @@ describe('effect-card combat simulation', () => {
       1,
       () => 0.5,
       [],
-      combatConfig.initialWeaponDamage,
+      initialWeaponDamage,
       1,
     )
 

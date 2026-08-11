@@ -1,5 +1,4 @@
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
-import { combatConfig } from '../../configs/combatConfig'
 import { effectCardConfig } from '../../configs/effectCardConfig'
 import {
   equipmentConfig,
@@ -9,6 +8,7 @@ import { jackpotConfig } from '../../configs/jackpotConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import { roundConfig } from '../../configs/roundConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
+import { weaponConfig, type WeaponId } from '../../configs/weaponConfig'
 import type { JackpotOutcome, MimicId } from '../../types/game'
 import { calculateJackpotReward } from '../progression/progression'
 import { calculateEquipmentSale } from '../settlement/equipmentSale'
@@ -24,6 +24,7 @@ import {
   createMeteoriteTrajectory,
 } from '../game/effectCards/meteoriteRules'
 import { createSeededRandom } from './createSeededRandom'
+import { findWeaponDefinition } from '../progression/weaponProgression'
 import { addEffectCounts, countEffectCards } from './effectCardCounts'
 import {
   selectSimulatedAttachedContent,
@@ -53,6 +54,7 @@ export type EquipmentLoadoutKey =
   keyof typeof balanceSimulationConfig.equipmentLoadouts
 
 export interface SimulatedRound {
+  weaponId: WeaponId
   stage: StageKey
   playerModel: PlayerModel
   accuracyModel: AccuracyModel
@@ -135,6 +137,7 @@ function calculateJackpotOpportunities(): number {
 }
 
 function simulateRound(
+  weaponId: WeaponId,
   stage: StageKey,
   playerModel: PlayerModel,
   accuracyModel: AccuracyModel,
@@ -143,6 +146,8 @@ function simulateRound(
   seed: number,
   includeBackpackManagementCases: boolean,
 ): SimulatedRound[] {
+  const weapon = findWeaponDefinition(weaponId)
+  if (!weapon) throw new Error(`Unknown simulation weapon: ${weaponId}`)
   const pool = stagePools[stage]
   const spawnMetrics = simulateSpawnStream(pool, seed)
   const random = createSeededRandom(seed ^ 0x9e3779b9)
@@ -153,7 +158,7 @@ function simulateRound(
   const swordCount = initialEquipment.filter((id) => id === 'sword').length
   const ringCount = initialEquipment.filter((id) => id === 'ring').length
   const weaponDamage =
-    combatConfig.initialWeaponDamage +
+    weapon.baseDamage +
     swordCount * equipmentConfig.sword.weaponDamageBonus
   let landedClickBudget = roundConfig.durationMs * clickRate * accuracy / 1_000
   const shellMimicId = selectWeightedMimicId(pool, random)
@@ -361,6 +366,7 @@ function simulateRound(
       jackpotReward: calculateJackpotReward(pool),
       jackpotCase,
       initialLoadout: initialEquipment,
+      baseWeaponDamage: weapon.baseDamage,
       backpackManagementPolicy,
       clickRate,
       accuracy,
@@ -370,48 +376,49 @@ function simulateRound(
       Array.from({ length: equipment.successfulDrops[id] }, () => id),
     )
     return {
-    stage,
-    playerModel,
-    accuracyModel,
-    jackpotCase,
-    equipmentLoadout,
-    backpackManagementPolicy,
-    generatedByMimic,
-    initialFieldMimicCount: spawnMetrics.initialFieldMimicCount,
-    placementAttempts: spawnMetrics.placementAttempts,
-    placementRejections: spawnMetrics.placementRejections,
-    ...combatMetrics,
-    jackpotIncome: jackpotDefeated ? calculateJackpotReward(pool) : 0,
-    potentialJackpotReward: calculateJackpotReward(pool),
-    equipmentSaleIncome: calculateEquipmentSale(soldEquipmentIds).totalGold,
-    jackpotOpportunities:
-      jackpotCase === 'notRevealed' ? calculateJackpotOpportunities() : 1,
-    jackpotRevealed,
-    jackpotDefeated,
-    jackpotEscaped: jackpotRevealed && !jackpotDefeated,
-    effectCardEligibleSpawns:
-      spawnMetrics.spawnedMimics.length +
-      combatMetrics.refilledMimicCount +
-      1,
-    chanceEffectCardsGenerated,
-    effectCardsGenerated,
-    cardsTriggered,
-    attackHits,
-    additionalDamage,
-    effectDefeats: combatMetrics.defeats,
-    thunderStrikesTriggered:
-      combatMetrics.thunderStrikesTriggered +
-      Number(shellThunderHitsJackpot) *
-        effectCardConfig.thunder.initialStrikeCount,
-    meteoritesLaunched: combatMetrics.meteoritesLaunched,
-    meteoriteImpacts: combatMetrics.meteoriteImpacts,
-    tornadoesSpawned: combatMetrics.tornadoesSpawned,
-    maximumEffectChainDepth: combatMetrics.maximumEffectChainDepth,
-    swordAdditionalDamage: equipment.swordAdditionalDamage,
-    ringAdditionalDamage: equipment.ringAdditionalDamage,
-    ringDamageStrikes: equipment.ringDamageStrikes,
-    equipment,
-    finished: true,
+      weaponId,
+      stage,
+      playerModel,
+      accuracyModel,
+      jackpotCase,
+      equipmentLoadout,
+      backpackManagementPolicy,
+      generatedByMimic,
+      initialFieldMimicCount: spawnMetrics.initialFieldMimicCount,
+      placementAttempts: spawnMetrics.placementAttempts,
+      placementRejections: spawnMetrics.placementRejections,
+      ...combatMetrics,
+      jackpotIncome: jackpotDefeated ? calculateJackpotReward(pool) : 0,
+      potentialJackpotReward: calculateJackpotReward(pool),
+      equipmentSaleIncome: calculateEquipmentSale(soldEquipmentIds).totalGold,
+      jackpotOpportunities:
+        jackpotCase === 'notRevealed' ? calculateJackpotOpportunities() : 1,
+      jackpotRevealed,
+      jackpotDefeated,
+      jackpotEscaped: jackpotRevealed && !jackpotDefeated,
+      effectCardEligibleSpawns:
+        spawnMetrics.spawnedMimics.length +
+        combatMetrics.refilledMimicCount +
+        1,
+      chanceEffectCardsGenerated,
+      effectCardsGenerated,
+      cardsTriggered,
+      attackHits,
+      additionalDamage,
+      effectDefeats: combatMetrics.defeats,
+      thunderStrikesTriggered:
+        combatMetrics.thunderStrikesTriggered +
+        Number(shellThunderHitsJackpot) *
+          effectCardConfig.thunder.initialStrikeCount,
+      meteoritesLaunched: combatMetrics.meteoritesLaunched,
+      meteoriteImpacts: combatMetrics.meteoriteImpacts,
+      tornadoesSpawned: combatMetrics.tornadoesSpawned,
+      maximumEffectChainDepth: combatMetrics.maximumEffectChainDepth,
+      swordAdditionalDamage: equipment.swordAdditionalDamage,
+      ringAdditionalDamage: equipment.ringAdditionalDamage,
+      ringDamageStrikes: equipment.ringDamageStrikes,
+      equipment,
+      finished: true,
     }
   })
 }
@@ -425,29 +432,32 @@ export function runBalanceSimulation(
 ): BalanceSimulationReport {
   const seeds = options.seeds ?? balanceSimulationConfig.seeds
   const rounds: SimulatedRound[] = []
-  for (const stage of Object.keys(stagePools) as StageKey[]) {
-    for (const playerModel of Object.keys(
-      balanceSimulationConfig.playerClickRatesPerSecond,
-    ) as PlayerModel[]) {
-      for (const accuracyModel of Object.keys(
-        balanceSimulationConfig.accuracyRates,
-      ) as AccuracyModel[]) {
-        for (const jackpotCase of balanceSimulationConfig.jackpotCases) {
-          for (const equipmentLoadout of Object.keys(
-            balanceSimulationConfig.equipmentLoadouts,
-          ) as EquipmentLoadoutKey[]) {
-            for (const seed of seeds) {
-              rounds.push(
-                ...simulateRound(
-                  stage,
-                  playerModel,
-                  accuracyModel,
-                  jackpotCase,
-                  equipmentLoadout,
-                  seed,
-                  true,
-                ),
-              )
+  for (const weapon of weaponConfig.definitions) {
+    for (const stage of Object.keys(stagePools) as StageKey[]) {
+      for (const playerModel of Object.keys(
+        balanceSimulationConfig.playerClickRatesPerSecond,
+      ) as PlayerModel[]) {
+        for (const accuracyModel of Object.keys(
+          balanceSimulationConfig.accuracyRates,
+        ) as AccuracyModel[]) {
+          for (const jackpotCase of balanceSimulationConfig.jackpotCases) {
+            for (const equipmentLoadout of Object.keys(
+              balanceSimulationConfig.equipmentLoadouts,
+            ) as EquipmentLoadoutKey[]) {
+              for (const seed of seeds) {
+                rounds.push(
+                  ...simulateRound(
+                    weapon.id,
+                    stage,
+                    playerModel,
+                    accuracyModel,
+                    jackpotCase,
+                    equipmentLoadout,
+                    seed,
+                    true,
+                  ),
+                )
+              }
             }
           }
         }
@@ -456,42 +466,6 @@ export function runBalanceSimulation(
   }
 
   return createBalanceSimulationReport(rounds, stagePools)
-}
-
-export function runEconomyBaselineStageIncome(): Record<StageKey, number> {
-  const result = {} as Record<StageKey, number>
-  for (const stage of Object.keys(stagePools) as StageKey[]) {
-    let totalIncome = 0
-    let caseCount = 0
-    for (const playerModel of Object.keys(
-      balanceSimulationConfig.playerClickRatesPerSecond,
-    ) as PlayerModel[]) {
-      for (const accuracyModel of Object.keys(
-        balanceSimulationConfig.accuracyRates,
-      ) as AccuracyModel[]) {
-        for (const jackpotCase of balanceSimulationConfig.jackpotCases) {
-          for (const seed of balanceSimulationConfig.seeds) {
-            const [round] = simulateRound(
-              stage,
-              playerModel,
-              accuracyModel,
-              jackpotCase,
-              'none',
-              seed,
-              false,
-            )
-            totalIncome +=
-              round.ordinaryIncome +
-              round.jackpotIncome +
-              round.equipmentSaleIncome
-            caseCount += 1
-          }
-        }
-      }
-    }
-    result[stage] = totalIncome / caseCount
-  }
-  return result
 }
 
 export type { BalanceSimulationReport } from './balanceSimulationReport'

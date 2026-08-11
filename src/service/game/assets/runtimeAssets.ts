@@ -187,7 +187,7 @@ export async function loadRuntimeAssets(): Promise<LoadedRuntimeAssets> {
     combatEffects: {
       hitFrames: createHorizontalSpriteSheetFrames(
         hitStrip,
-        animationConfig.manualHitEffect.spriteSheet,
+        animationConfig.weaponHitEffect.spriteSheet,
       ),
     },
   }

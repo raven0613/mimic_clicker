@@ -1,5 +1,5 @@
-import { combatConfig } from '../../../configs/combatConfig'
 import { effectCardConfig } from '../../../configs/effectCardConfig'
+import { getInitialWeaponDefinition } from '../../progression/weaponProgression'
 
 export interface EffectCardWindupProgress {
   elapsedMs: number
@@ -8,21 +8,21 @@ export interface EffectCardWindupProgress {
 
 export function calculateInitialThunderDamage(): number {
   return (
-    combatConfig.initialWeaponDamage *
+    getInitialWeaponDefinition().baseDamage *
     effectCardConfig.thunder.initialWeaponDamageMultiplier
   )
 }
 
 export function calculateInitialMeteoriteDamage(): number {
   return (
-    combatConfig.initialWeaponDamage *
+    getInitialWeaponDefinition().baseDamage *
     effectCardConfig.meteorite.initialWeaponDamageMultiplier
   )
 }
 
 export function calculateInitialTornadoDamage(): number {
   return (
-    combatConfig.initialWeaponDamage *
+    getInitialWeaponDefinition().baseDamage *
     effectCardConfig.tornado.initialWeaponDamageMultiplier
   )
 }

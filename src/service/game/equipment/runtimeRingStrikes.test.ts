@@ -1,13 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { combatConfig } from '../../../configs/combatConfig'
 import { equipmentConfig } from '../../../configs/equipmentConfig'
+import { getInitialWeaponDefinition } from '../../progression/weaponProgression'
 import type { RuntimeMimicEntity } from '../runtimeTypes'
 import type { EquipmentRewardSystem } from './EquipmentRewardSystem'
 import { resolveRuntimeRingStrikes } from './runtimeRingStrikes'
 
+const initialWeaponDamage = getInitialWeaponDefinition().baseDamage
+
 describe('runtime Ring strikes', () => {
-  it('damages the same runtime identity and offsets the hit visual', () => {
+  it('damages the same runtime identity and offsets the triggering pointer origin', () => {
     const target = {
       runtimeId: 7,
       logicalX: 100,
@@ -16,8 +18,8 @@ describe('runtime Ring strikes', () => {
     const equipment = createEquipmentStub([
       {
         targetId: target.runtimeId,
-        targetPosition: { x: 80, y: 160 },
-        damage: combatConfig.initialWeaponDamage,
+        hitEffectOrigin: { x: 80, y: 160 },
+        damage: initialWeaponDamage,
       },
     ])
     const damageTarget = vi.fn(() => true)
@@ -33,26 +35,26 @@ describe('runtime Ring strikes', () => {
 
     expect(damageTarget).toHaveBeenCalledWith(
       target,
-      combatConfig.initialWeaponDamage,
+      initialWeaponDamage,
     )
     expect(addHitEffect).toHaveBeenCalledWith(
       {
-        x: target.logicalX +
+        x: 80 +
           equipmentConfig.ring.additionalHitEffectOffset.x,
-        y: target.logicalY +
+        y: 160 +
           equipmentConfig.ring.additionalHitEffectOffset.y,
       },
       equipmentConfig.ring.additionalHitEffectTintColor,
     )
   })
 
-  it('shows the queued hit at its snapshot position when the target is gone', () => {
-    const targetPosition = { x: 80, y: 160 }
+  it('shows the queued hit at its pointer snapshot when the target is gone', () => {
+    const hitEffectOrigin = { x: 80, y: 160 }
     const equipment = createEquipmentStub([
       {
         targetId: 99,
-        targetPosition,
-        damage: combatConfig.initialWeaponDamage,
+        hitEffectOrigin,
+        damage: initialWeaponDamage,
       },
     ])
     const damageTarget = vi.fn(() => false)
@@ -69,9 +71,9 @@ describe('runtime Ring strikes', () => {
     expect(damageTarget).not.toHaveBeenCalled()
     expect(addHitEffect).toHaveBeenCalledWith(
       {
-        x: targetPosition.x +
+        x: hitEffectOrigin.x +
           equipmentConfig.ring.additionalHitEffectOffset.x,
-        y: targetPosition.y +
+        y: hitEffectOrigin.y +
           equipmentConfig.ring.additionalHitEffectOffset.y,
       },
       equipmentConfig.ring.additionalHitEffectTintColor,
@@ -88,13 +90,13 @@ describe('runtime Ring strikes', () => {
     const equipment = createEquipmentStub([
       {
         targetId: target.runtimeId,
-        targetPosition: { x: 90, y: 190 },
-        damage: combatConfig.initialWeaponDamage,
+        hitEffectOrigin: { x: 90, y: 190 },
+        damage: initialWeaponDamage,
       },
       {
         targetId: target.runtimeId,
-        targetPosition: { x: 90, y: 190 },
-        damage: combatConfig.initialWeaponDamage,
+        hitEffectOrigin: { x: 90, y: 190 },
+        damage: initialWeaponDamage,
       },
     ])
     const damageTarget = vi.fn(() => {
@@ -122,9 +124,9 @@ describe('runtime Ring strikes', () => {
     expect(addHitEffect).toHaveBeenNthCalledWith(
       1,
       {
-        x: target.logicalX +
+        x: 90 +
           equipmentConfig.ring.additionalHitEffectOffset.x,
-        y: target.logicalY +
+        y: 190 +
           equipmentConfig.ring.additionalHitEffectOffset.y,
       },
       equipmentConfig.ring.additionalHitEffectTintColor,

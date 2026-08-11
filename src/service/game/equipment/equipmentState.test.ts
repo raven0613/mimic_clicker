@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { combatConfig } from '../../../configs/combatConfig'
 import { equipmentConfig } from '../../../configs/equipmentConfig'
+import { getInitialWeaponDefinition } from '../../progression/weaponProgression'
 import { EquipmentState } from './equipmentState'
+
+const initialWeaponDamage = getInitialWeaponDefinition().baseDamage
 
 describe('equipment state', () => {
   it('uses the same reservation flow for a permanently unlocked third slot', () => {
@@ -56,8 +58,8 @@ describe('equipment state', () => {
     expect(state.getInventorySnapshot().stored.map(({ id }) => id)).toEqual([
       'sword',
     ])
-    expect(state.calculateWeaponDamage(combatConfig.initialWeaponDamage)).toBe(
-      combatConfig.initialWeaponDamage + equipmentConfig.sword.weaponDamageBonus,
+    expect(state.calculateWeaponDamage(initialWeaponDamage)).toBe(
+      initialWeaponDamage + equipmentConfig.sword.weaponDamageBonus,
     )
   })
 
@@ -86,8 +88,8 @@ describe('equipment state', () => {
       state.completeReservation(reservation.reservationId)
     }
 
-    expect(state.calculateWeaponDamage(combatConfig.initialWeaponDamage)).toBe(
-      combatConfig.initialWeaponDamage +
+    expect(state.calculateWeaponDamage(initialWeaponDamage)).toBe(
+      initialWeaponDamage +
         equipmentConfig.sword.weaponDamageBonus * reservations.length,
     )
   })
@@ -108,8 +110,8 @@ describe('equipment state', () => {
     ) {
       state.recordAcceptedManualHit({
         targetId: 7,
-        targetPosition: { x: 100, y: 200 },
-        triggeringWeaponDamage: combatConfig.initialWeaponDamage,
+        hitEffectOrigin: { x: 100, y: 200 },
+        triggeringWeaponDamage: initialWeaponDamage,
       })
     }
 
@@ -119,9 +121,9 @@ describe('equipment state', () => {
     const [firstStrike] = state.advanceRingQueue(1)
     expect(firstStrike).toMatchObject({
       targetId: 7,
-      targetPosition: { x: 100, y: 200 },
+      hitEffectOrigin: { x: 100, y: 200 },
       damage:
-        combatConfig.initialWeaponDamage *
+        initialWeaponDamage *
         equipmentConfig.ring.additionalDamageMultiplier,
     })
     expect(state.advanceRingQueue(0)).toEqual([])
@@ -130,7 +132,7 @@ describe('equipment state', () => {
     ).toEqual([
       expect.objectContaining({
         targetId: 7,
-        targetPosition: { x: 100, y: 200 },
+        hitEffectOrigin: { x: 100, y: 200 },
       }),
     ])
   })
@@ -146,19 +148,46 @@ describe('equipment state', () => {
     ) {
       state.recordAcceptedManualHit({
         targetId: 3,
-        targetPosition: { x: 30, y: 40 },
-        triggeringWeaponDamage: combatConfig.initialWeaponDamage,
+        hitEffectOrigin: { x: 30, y: 40 },
+        triggeringWeaponDamage: initialWeaponDamage,
       })
     }
     state.recordAcceptedManualHit({
       targetId: 4,
-      targetPosition: { x: 50, y: 60 },
-      triggeringWeaponDamage: combatConfig.initialWeaponDamage,
+      hitEffectOrigin: { x: 50, y: 60 },
+      triggeringWeaponDamage: initialWeaponDamage,
     })
 
     expect(
       state.advanceRingQueue(equipmentConfig.ring.additionalHitIntervalMs),
     ).toEqual([expect.objectContaining({ targetId: 4 })])
+  })
+
+  it('keeps an immutable Ring visual origin snapshot', () => {
+    const state = new EquipmentState()
+    const [ring] = state.reserveDrops([{ id: 'ring', rarity: 'SR' }])
+    state.completeReservation(ring.reservationId)
+    const hitEffectOrigin = { x: 50, y: 60 }
+
+    for (
+      let hitIndex = 0;
+      hitIndex < equipmentConfig.ring.acceptedManualHitsPerTrigger;
+      hitIndex += 1
+    ) {
+      state.recordAcceptedManualHit({
+        targetId: 4,
+        hitEffectOrigin,
+        triggeringWeaponDamage: initialWeaponDamage,
+      })
+    }
+    hitEffectOrigin.x = 500
+    hitEffectOrigin.y = 600
+
+    expect(
+      state.advanceRingQueue(equipmentConfig.ring.additionalHitIntervalMs),
+    ).toEqual([
+      expect.objectContaining({ hitEffectOrigin: { x: 50, y: 60 } }),
+    ])
   })
 
   it('preserves ticker overshoot between sequential Ring strikes', () => {
@@ -386,8 +415,8 @@ function recordRingHits(
   ) {
     state.recordAcceptedManualHit({
       targetId,
-      targetPosition: { x: targetId * 10, y: targetId * 20 },
-      triggeringWeaponDamage: combatConfig.initialWeaponDamage,
+      hitEffectOrigin: { x: targetId * 10, y: targetId * 20 },
+      triggeringWeaponDamage: initialWeaponDamage,
     })
   }
 }

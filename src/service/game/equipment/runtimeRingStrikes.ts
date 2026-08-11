@@ -23,13 +23,15 @@ export function resolveRuntimeRingStrikes(
     const target = input.entities.find(
       (entity) => entity.runtimeId === strike.targetId,
     )
-    const targetX = target?.logicalX ?? strike.targetPosition.x
-    const targetY = target?.logicalY ?? strike.targetPosition.y
     if (target) input.damageTarget(target, strike.damage)
     input.addHitEffect(
       {
-        x: targetX + equipmentConfig.ring.additionalHitEffectOffset.x,
-        y: targetY + equipmentConfig.ring.additionalHitEffectOffset.y,
+        x:
+          strike.hitEffectOrigin.x +
+          equipmentConfig.ring.additionalHitEffectOffset.x,
+        y:
+          strike.hitEffectOrigin.y +
+          equipmentConfig.ring.additionalHitEffectOffset.y,
       },
       equipmentConfig.ring.additionalHitEffectTintColor,
     )

@@ -11,6 +11,7 @@ import type { PermanentUpgradeId, ProgressData } from '../../types/game'
 
 interface PermanentUpgradeShopProps {
   progress: ProgressData
+  disabled: boolean
   onPurchase: (
     upgradeId: PermanentUpgradeId,
   ) => Promise<PermanentUpgradePurchaseStatus>
@@ -23,6 +24,7 @@ const laneLabels: Record<PermanentUpgradeShopOffer['lane'], string> = {
 
 export function PermanentUpgradeShop({
   progress,
+  disabled,
   onPurchase,
 }: PermanentUpgradeShopProps) {
   const [busyUpgradeId, setBusyUpgradeId] =
@@ -31,7 +33,7 @@ export function PermanentUpgradeShop({
   const offers = getPermanentUpgradeShopOffers(progress)
 
   async function purchase(offer: PermanentUpgradeShopOffer) {
-    if (offer.availability !== 'available' || busyUpgradeId) return
+    if (disabled || offer.availability !== 'available' || busyUpgradeId) return
     setBusyUpgradeId(offer.purchaseId)
     setMessage(null)
     try {
@@ -66,7 +68,9 @@ export function PermanentUpgradeShop({
               className="button button--quiet"
               type="button"
               disabled={
-                offer.availability !== 'available' || busyUpgradeId !== null
+                disabled ||
+                offer.availability !== 'available' ||
+                busyUpgradeId !== null
               }
               onClick={() => void purchase(offer)}
             >

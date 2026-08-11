@@ -8,8 +8,10 @@ import { completeRound } from '../progression/progression'
 import { createInitialProgress } from '../progression/createInitialProgress'
 import { purchasePermanentUpgrade } from '../progression/permanentUpgrades'
 import { permanentUpgradeConfig } from '../../configs/permanentUpgradeConfig'
+import { weaponConfig } from '../../configs/weaponConfig'
 import { calculateEquipmentSale } from '../settlement/equipmentSale'
 import { createRoundResult } from '../settlement/roundSettlement'
+import { equipWeapon, purchaseWeapon } from '../progression/weaponProgression'
 import { createSaveRepository } from './saveRepository'
 
 let databaseSequence = 0
@@ -85,6 +87,28 @@ describe('save repository', () => {
     await repository.replace(purchase.progress)
 
     expect(await repository.loadOrCreate()).toEqual(purchase.progress)
+  })
+
+  it('persists weapon purchase and free equipment switching', async () => {
+    const repository = createRepository()
+    const definition = weaponConfig.definitions[1]
+    const initial = {
+      ...(await repository.loadOrCreate()),
+      gold: definition.priceGold,
+    }
+    const purchase = purchaseWeapon(initial, definition.id)
+
+    expect(purchase.status).toBe('purchased')
+    await repository.replace(purchase.progress)
+    expect(await repository.loadOrCreate()).toEqual(purchase.progress)
+
+    const switched = equipWeapon(
+      purchase.progress,
+      weaponConfig.initialWeaponId,
+    )
+    expect(switched.status).toBe('equipped')
+    await repository.replace(switched.progress)
+    expect(await repository.loadOrCreate()).toEqual(switched.progress)
   })
 
   it('rejects progression that contradicts the fixed unlock sequence', async () => {

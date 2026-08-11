@@ -52,13 +52,13 @@ export type MoveEquipmentResult =
 
 export interface AcceptedManualHit {
   targetId: number
-  targetPosition: Vector2
+  hitEffectOrigin: Vector2
   triggeringWeaponDamage: number
 }
 
 export interface RingStrike {
   targetId: number
-  targetPosition: Vector2
+  hitEffectOrigin: Vector2
   damage: number
 }
 
@@ -298,7 +298,7 @@ export class EquipmentState {
     for (let ringIndex = 0; ringIndex < ringCount; ringIndex += 1) {
       this.pendingRingStrikes.push({
         targetId: hit.targetId,
-        targetPosition: { ...hit.targetPosition },
+        hitEffectOrigin: { ...hit.hitEffectOrigin },
         damage,
       })
     }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { combatConfig } from '../../configs/combatConfig'
 import { jackpotConfig } from '../../configs/jackpotConfig'
+import { getInitialWeaponDefinition } from '../progression/weaponProgression'
 import {
   applyDamage,
   advanceJackpotLifecycle,
@@ -12,8 +12,8 @@ import {
 describe('combat rules', () => {
   it('derives defeat from remaining health without storing hit counts', () => {
     const firstHit = applyDamage(
-      combatConfig.initialWeaponDamage,
-      combatConfig.initialWeaponDamage,
+      getInitialWeaponDefinition().baseDamage,
+      getInitialWeaponDefinition().baseDamage,
     )
 
     expect(firstHit.remainingHealth).toBe(0)

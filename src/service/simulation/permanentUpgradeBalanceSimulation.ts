@@ -1,30 +1,34 @@
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
 import { equipmentDefinitions } from '../../configs/equipmentConfig'
-import type { JackpotOutcome, PermanentUpgradeId, ProgressData } from '../../types/game'
-import { createInitialProgress } from '../progression/createInitialProgress'
+import { weaponConfig, type WeaponId } from '../../configs/weaponConfig'
+import type { JackpotOutcome } from '../../types/game'
 import { calculateJackpotReward } from '../progression/progression'
 import {
   createPermanentUpgradeSnapshot,
-  purchasePermanentUpgrade,
 } from '../progression/permanentUpgrades'
 import { calculateEquipmentSale } from '../settlement/equipmentSale'
 import { selectWeightedMimicId } from '../spawn/spawn'
 import { selectSimulatedAttachedContent, selectSimulatedJackpotAttachedContent } from './attachedCardSimulation'
 import {
-  runEconomyBaselineStageIncome,
+  runBalanceSimulation,
   stagePools,
   type StageKey,
 } from './balanceSimulation'
 import { createSeededRandom } from './createSeededRandom'
 import { simulateEquipmentCombatRound } from './equipmentBalanceSimulation'
 import { simulateSpawnStream } from './spawnStreamSimulation'
+import {
+  runProgressionPurchaseRouteSimulation,
+  type PurchaseRouteKey,
+  type PurchaseRouteMetrics,
+} from './progressionPurchaseRouteSimulation'
 
 export type PermanentUpgradeProfileKey =
   keyof typeof balanceSimulationConfig.permanentUpgradeProfiles
 
 export interface PermanentUpgradeProfileMetrics {
   caseCount: number
-  baseWeaponDamage: number
+  baseWeaponDamageByWeapon: Record<WeaponId, number>
   automaticAttackIntervalMs: number | null
   equipmentSlotCount: number
   averageManualWeaponHits: number
@@ -33,6 +37,10 @@ export interface PermanentUpgradeProfileMetrics {
   automaticWeaponDamageShare: number
   averageTotalIncome: number
   stageAverageTotalIncome: Record<StageKey, number>
+  weaponStageAverageTotalIncome: Record<
+    WeaponId,
+    Record<StageKey, number>
+  >
   averageThirdSlotActivationTimeMs: number | null
 }
 
@@ -44,23 +52,14 @@ export interface PermanentUpgradeBalanceReport {
     PermanentUpgradeProfileMetrics
   >
   purchaseRoutes: Record<PurchaseRouteKey, PurchaseRouteMetrics>
-  economyBaselineStageIncome: Record<StageKey, number>
-}
-
-export type PurchaseRouteKey = keyof typeof purchaseRoutes
-
-export interface PurchaseRouteMetrics {
-  totalRounds: number
-  purchasedAtRound: Array<{
-    upgradeId: PermanentUpgradeId
-    level: number
-    round: number
-  }>
+  economyBaselineStageIncome: Record<WeaponId, Record<StageKey, number>>
 }
 
 interface PermanentUpgradeSimulatedCase {
   profile: PermanentUpgradeProfileKey
+  weaponId: WeaponId
   stage: StageKey
+  seed: number
   manualWeaponHits: number
   automaticWeaponHits: number
   manualWeaponDamage: number
@@ -76,25 +75,28 @@ export function runPermanentUpgradeBalanceSimulation(): PermanentUpgradeBalanceR
     balanceSimulationConfig.permanentUpgradeProfiles,
   ) as PermanentUpgradeProfileKey[]
   for (const profile of profiles) {
-    for (const stage of Object.keys(stagePools) as StageKey[]) {
-      for (const clickRate of Object.values(
-        balanceSimulationConfig.playerClickRatesPerSecond,
-      )) {
-        for (const accuracy of Object.values(
-          balanceSimulationConfig.accuracyRates,
+    for (const weapon of weaponConfig.definitions) {
+      for (const stage of Object.keys(stagePools) as StageKey[]) {
+        for (const clickRate of Object.values(
+          balanceSimulationConfig.playerClickRatesPerSecond,
         )) {
-          for (const jackpotCase of balanceSimulationConfig.jackpotCases) {
-            for (const seed of balanceSimulationConfig.seeds) {
-              cases.push(
-                simulateCase(
-                  profile,
-                  stage,
-                  clickRate,
-                  accuracy,
-                  jackpotCase,
-                  seed,
-                ),
-              )
+          for (const accuracy of Object.values(
+            balanceSimulationConfig.accuracyRates,
+          )) {
+            for (const jackpotCase of balanceSimulationConfig.jackpotCases) {
+              for (const seed of balanceSimulationConfig.seeds) {
+                cases.push(
+                  simulateCase(
+                    profile,
+                    weapon.id,
+                    stage,
+                    clickRate,
+                    accuracy,
+                    jackpotCase,
+                    seed,
+                  ),
+                )
+              }
             }
           }
         }
@@ -111,57 +113,46 @@ export function runPermanentUpgradeBalanceSimulation(): PermanentUpgradeBalanceR
       ),
     ]),
   ) as PermanentUpgradeBalanceReport['profiles']
-  const economyBaselineStageIncome = runEconomyBaselineStageIncome()
+  const baselineWeaponMetrics = runBalanceSimulation().weaponMetrics.byWeapon
+  const economyBaselineStageIncome = Object.fromEntries(
+    weaponConfig.definitions.map((weapon) => [
+      weapon.id,
+      Object.fromEntries(
+        (Object.keys(stagePools) as StageKey[]).map((stage) => [
+          stage,
+          baselineWeaponMetrics[weapon.id][stage].averageTotalIncome,
+        ]),
+      ),
+    ]),
+  ) as Record<WeaponId, Record<StageKey, number>>
   return {
     configVersion: balanceSimulationConfig.configVersion,
     caseCount: cases.length,
     profiles: profileReport,
     economyBaselineStageIncome,
-    purchaseRoutes: Object.fromEntries(
-      (Object.keys(purchaseRoutes) as PurchaseRouteKey[]).map((routeKey) => [
-        routeKey,
-        simulatePurchaseRoute(
-          purchaseRoutes[routeKey],
-          profileReport,
-          economyBaselineStageIncome,
-        ),
-      ]),
-    ) as Record<PurchaseRouteKey, PurchaseRouteMetrics>,
+    purchaseRoutes: runProgressionPurchaseRouteSimulation(
+      profileReport,
+      economyBaselineStageIncome,
+      createIncomeMultipliers(cases),
+    ),
   }
 }
 
-const purchaseRoutes = {
-  hoverFirst: [
-    'hoverAutoAttackUnlock',
-    'hoverAutoAttackInterval',
-    'hoverAutoAttackInterval',
-    'hoverAutoAttackInterval',
-    'equipmentSlots',
-  ],
-  directSlot: [
-    'equipmentSlots',
-    'hoverAutoAttackUnlock',
-    'hoverAutoAttackInterval',
-    'hoverAutoAttackInterval',
-    'hoverAutoAttackInterval',
-  ],
-  balanced: [
-    'hoverAutoAttackUnlock',
-    'equipmentSlots',
-    'hoverAutoAttackInterval',
-    'hoverAutoAttackInterval',
-    'hoverAutoAttackInterval',
-  ],
-} as const satisfies Record<string, readonly PermanentUpgradeId[]>
-
 function simulateCase(
   profileKey: PermanentUpgradeProfileKey,
+  weaponId: WeaponId,
   stage: StageKey,
   clickRate: number,
   accuracy: number,
   jackpotCase: JackpotOutcome,
   seed: number,
 ): PermanentUpgradeSimulatedCase {
+  const weaponDefinition = weaponConfig.definitions.find(
+    ({ id }) => id === weaponId,
+  )
+  if (!weaponDefinition) {
+    throw new Error(`Unknown simulation weapon: ${weaponId}`)
+  }
   const profile = balanceSimulationConfig.permanentUpgradeProfiles[profileKey]
   const snapshot = createPermanentUpgradeSnapshot(profile.levels)
   const pool = stagePools[stage]
@@ -176,7 +167,7 @@ function simulateCase(
     jackpotReward: calculateJackpotReward(pool),
     jackpotCase,
     initialLoadout: profile.initialLoadout,
-    baseWeaponDamage: snapshot.weaponDamage,
+    baseWeaponDamage: weaponDefinition.baseDamage,
     automaticAttackIntervalMs: snapshot.hoverAutoAttack.isUnlocked
       ? snapshot.hoverAutoAttack.intervalMs
       : null,
@@ -193,7 +184,9 @@ function simulateCase(
     : 0
   return {
     profile: profileKey,
+    weaponId,
     stage,
+    seed,
     manualWeaponHits: metrics.manualWeaponHits,
     automaticWeaponHits: metrics.automaticWeaponHits,
     manualWeaponDamage: metrics.manualWeaponDamage,
@@ -213,7 +206,9 @@ function createProfileMetrics(
 ): PermanentUpgradeProfileMetrics {
   const profile = balanceSimulationConfig.permanentUpgradeProfiles[profileKey]
   const snapshot = createPermanentUpgradeSnapshot(profile.levels)
-  const manualDamage = sum(cases.map(({ manualWeaponDamage }) => manualWeaponDamage))
+  const manualDamage = sum(
+    cases.map(({ manualWeaponDamage }) => manualWeaponDamage),
+  )
   const automaticDamage = sum(
     cases.map(({ automaticWeaponDamage }) => automaticWeaponDamage),
   )
@@ -223,7 +218,9 @@ function createProfileMetrics(
   )
   return {
     caseCount: cases.length,
-    baseWeaponDamage: snapshot.weaponDamage,
+    baseWeaponDamageByWeapon: Object.fromEntries(
+      weaponConfig.definitions.map((weapon) => [weapon.id, weapon.baseDamage]),
+    ) as Record<WeaponId, number>,
     automaticAttackIntervalMs: snapshot.hoverAutoAttack.isUnlocked
       ? snapshot.hoverAutoAttack.intervalMs
       : null,
@@ -249,6 +246,24 @@ function createProfileMetrics(
         ),
       ]),
     ) as Record<StageKey, number>,
+    weaponStageAverageTotalIncome: Object.fromEntries(
+      weaponConfig.definitions.map((weapon) => [
+        weapon.id,
+        Object.fromEntries(
+          (Object.keys(stagePools) as StageKey[]).map((stage) => [
+            stage,
+            average(
+              cases
+                .filter(
+                  (result) =>
+                    result.weaponId === weapon.id && result.stage === stage,
+                )
+                .map(({ totalIncome }) => totalIncome),
+            ),
+          ]),
+        ),
+      ]),
+    ) as Record<WeaponId, Record<StageKey, number>>,
     averageThirdSlotActivationTimeMs:
       thirdSlotActivationCount === 0
         ? null
@@ -261,98 +276,37 @@ function createProfileMetrics(
   }
 }
 
-function simulatePurchaseRoute(
-  route: readonly PermanentUpgradeId[],
-  profiles: PermanentUpgradeBalanceReport['profiles'],
-  economyBaselineStageIncome: Record<StageKey, number>,
-): PurchaseRouteMetrics {
-  let progress = createInitialProgress()
-  const purchasedAtRound: PurchaseRouteMetrics['purchasedAtRound'] = []
-  let nextPurchaseIndex = 0
-  let round = 0
-  while (nextPurchaseIndex < route.length) {
-    round += 1
-    if (round > 100) {
-      throw new Error('Permanent upgrade purchase route exceeded 100 rounds')
-    }
-    const stage = stageForRound(round)
-    progress = {
-      ...progress,
-      gold:
-        progress.gold +
-        Math.round(
-          projectStageIncome(
-            progress,
-            stage,
-            profiles,
-            economyBaselineStageIncome,
-          ),
+function createIncomeMultipliers(
+  cases: readonly PermanentUpgradeSimulatedCase[],
+): Array<Record<WeaponId, Record<StageKey, number>>> {
+  const baselineCases = cases.filter(({ profile }) => profile === 'allZero')
+  return balanceSimulationConfig.seeds.map((seed) =>
+    Object.fromEntries(
+      weaponConfig.definitions.map((weapon) => [
+        weapon.id,
+        Object.fromEntries(
+          (Object.keys(stagePools) as StageKey[]).map((stage) => {
+            const comparableCases = baselineCases.filter(
+              (result) =>
+                result.weaponId === weapon.id && result.stage === stage,
+            )
+            const seedIncome = average(
+              comparableCases
+                .filter((result) => result.seed === seed)
+                .map(({ totalIncome }) => totalIncome),
+            )
+            return [
+              stage,
+              seedIncome /
+                average(comparableCases.map(({ totalIncome }) => totalIncome)),
+            ]
+          }),
         ),
-    }
-    while (nextPurchaseIndex < route.length) {
-      const upgradeId = route[nextPurchaseIndex]
-      const purchase = purchasePermanentUpgrade(progress, upgradeId)
-      if (purchase.status === 'insufficientGold') break
-      if (purchase.status !== 'purchased') {
-        throw new Error(
-          `Purchase route could not buy ${upgradeId}: ${purchase.status}`,
-        )
-      }
-      progress = purchase.progress
-      purchasedAtRound.push({
-        upgradeId,
-        level: progress.permanentUpgrades[upgradeId],
-        round,
-      })
-      nextPurchaseIndex += 1
-    }
-  }
-  return { totalRounds: round, purchasedAtRound }
-}
-
-function projectStageIncome(
-  progress: ProgressData,
-  stage: StageKey,
-  profiles: PermanentUpgradeBalanceReport['profiles'],
-  economyBaselineStageIncome: Record<StageKey, number>,
-): number {
-  const levels = progress.permanentUpgrades
-  if (
-    levels.hoverAutoAttackUnlock === 1 &&
-    levels.hoverAutoAttackInterval === 3 &&
-    levels.equipmentSlots === 1
-  ) {
-    return (
-      economyBaselineStageIncome[stage] +
-      profiles.allMaximum.stageAverageTotalIncome[stage] -
-      profiles.allZero.stageAverageTotalIncome[stage]
-    )
-  }
-
-  const baseline = profiles.allZero.stageAverageTotalIncome[stage]
-  const hoverProfile = levels.hoverAutoAttackUnlock === 0
-    ? 'allZero'
-    : (
-        [
-          'hoverUnlocked',
-          'hoverInterval1',
-          'hoverInterval2',
-          'hoverInterval3',
-        ] as const
-      )[levels.hoverAutoAttackInterval]
-  const slotProfile = levels.equipmentSlots === 0 ? 'allZero' : 'equipmentSlot3'
-  return (
-    economyBaselineStageIncome[stage] +
-    (profiles[hoverProfile].stageAverageTotalIncome[stage] - baseline) +
-    (profiles[slotProfile].stageAverageTotalIncome[stage] - baseline)
+      ]),
+    ) as Record<WeaponId, Record<StageKey, number>>,
   )
 }
 
-function stageForRound(round: number): StageKey {
-  if (round === 1) return 'normalOnly'
-  if (round === 2) return 'normalRare1'
-  return 'allMimics'
-}
 
 function average(values: readonly number[]): number {
   return sum(values) / Math.max(1, values.length)

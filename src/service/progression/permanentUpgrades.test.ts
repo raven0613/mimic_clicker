@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-import { combatConfig } from '../../configs/combatConfig'
 import { equipmentConfig } from '../../configs/equipmentConfig'
 import { permanentUpgradeConfig } from '../../configs/permanentUpgradeConfig'
 import { createInitialProgress } from './createInitialProgress'
@@ -16,7 +15,6 @@ describe('permanent upgrades', () => {
     const progress = createInitialProgress()
 
     expect(createPermanentUpgradeSnapshot(progress.permanentUpgrades)).toEqual({
-      weaponDamage: combatConfig.initialWeaponDamage,
       hoverAutoAttack: {
         isUnlocked: false,
         intervalMs:

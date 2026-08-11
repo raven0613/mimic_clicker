@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
-import { combatConfig } from '../../configs/combatConfig'
 import { permanentUpgradeConfig } from '../../configs/permanentUpgradeConfig'
 import { equipmentConfig } from '../../configs/equipmentConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import { roundConfig } from '../../configs/roundConfig'
 import { simulateEquipmentCombatRound } from './equipmentBalanceSimulation'
 import type { SimulatedAttachedContent } from './attachedCardSimulation'
+import { getInitialWeaponDefinition } from '../progression/weaponProgression'
 
 const noAttachedContent: SimulatedAttachedContent = {
   effectCardIds: [],
@@ -115,7 +115,7 @@ describe('equipment combat balance simulation', () => {
       jackpotReward: mimicConfigs.normal.baseReward,
       jackpotCase: 'notRevealed',
       initialLoadout: [],
-      baseWeaponDamage: combatConfig.initialWeaponDamage,
+      baseWeaponDamage: getInitialWeaponDefinition().baseDamage,
       clickRate: balanceSimulationConfig.playerClickRatesPerSecond.target,
       accuracy: balanceSimulationConfig.accuracyRates.target,
       random: () => 0,

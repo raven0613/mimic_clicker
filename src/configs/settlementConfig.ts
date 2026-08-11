@@ -2,7 +2,7 @@ import type { AttachedCardRarity } from './attachedCardConfig'
 
 export const settlementConfig = {
   equipmentSale: {
-    basePriceGold: 6,
+    basePriceGold: 8,
     rarityPriceMultipliers: {
       N: 1,
       R: 2,

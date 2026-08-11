@@ -5,6 +5,7 @@ import { Container, Texture } from 'pixi.js'
 import { animationConfig } from '../../../configs/animationConfig'
 import { combatConfig } from '../../../configs/combatConfig'
 import { equipmentConfig } from '../../../configs/equipmentConfig'
+import { getInitialWeaponDefinition } from '../../progression/weaponProgression'
 import type { LoadedAttachedCardTextures } from '../assets/runtimeAssets'
 import type { EquipmentInventorySnapshot } from './equipmentState'
 import {
@@ -15,6 +16,7 @@ import {
 
 const fieldSize = { x: 800, y: 600 }
 const source = { x: fieldSize.x / 2, y: fieldSize.y / 3 }
+const initialWeaponDamage = getInitialWeaponDefinition().baseDamage
 const textures: LoadedAttachedCardTextures = {
   frames: { normal: Texture.WHITE },
   effectIcons: {
@@ -41,25 +43,25 @@ describe('equipment reward collection timing', () => {
       animationConfig.equipmentReward.postCoinCollectionDelayMs +
         animationConfig.equipmentReward.collectionDurationMs,
     )
-    expect(system.calculateWeaponDamage(combatConfig.initialWeaponDamage)).toBe(
-      combatConfig.initialWeaponDamage,
+    expect(system.calculateWeaponDamage(initialWeaponDamage)).toBe(
+      initialWeaponDamage,
     )
 
     system.notifyCoinCollectionCompleted(1)
     system.update(animationConfig.equipmentReward.postCoinCollectionDelayMs - 1)
-    expect(system.calculateWeaponDamage(combatConfig.initialWeaponDamage)).toBe(
-      combatConfig.initialWeaponDamage,
+    expect(system.calculateWeaponDamage(initialWeaponDamage)).toBe(
+      initialWeaponDamage,
     )
 
     system.update(1)
     system.update(animationConfig.equipmentReward.collectionDurationMs - 2)
-    expect(system.calculateWeaponDamage(combatConfig.initialWeaponDamage)).toBe(
-      combatConfig.initialWeaponDamage,
+    expect(system.calculateWeaponDamage(initialWeaponDamage)).toBe(
+      initialWeaponDamage,
     )
 
     system.update(1)
-    expect(system.calculateWeaponDamage(combatConfig.initialWeaponDamage)).toBe(
-      combatConfig.initialWeaponDamage +
+    expect(system.calculateWeaponDamage(initialWeaponDamage)).toBe(
+      initialWeaponDamage +
         equipmentConfig.sword.weaponDamageBonus,
     )
   })
@@ -73,8 +75,8 @@ describe('equipment reward collection timing', () => {
       animationConfig.equipmentReward.noCoinFallbackDelayMs,
     )
 
-    expect(system.calculateWeaponDamage(combatConfig.initialWeaponDamage)).toBe(
-      combatConfig.initialWeaponDamage,
+    expect(system.calculateWeaponDamage(initialWeaponDamage)).toBe(
+      initialWeaponDamage,
     )
 
     const collectionStartDeltaMs = advanceUntilSettled(system, motion)
@@ -83,13 +85,13 @@ describe('equipment reward collection timing', () => {
         collectionStartDeltaMs -
         1,
     )
-    expect(system.calculateWeaponDamage(combatConfig.initialWeaponDamage)).toBe(
-      combatConfig.initialWeaponDamage,
+    expect(system.calculateWeaponDamage(initialWeaponDamage)).toBe(
+      initialWeaponDamage,
     )
 
     system.update(1)
-    expect(system.calculateWeaponDamage(combatConfig.initialWeaponDamage)).toBe(
-      combatConfig.initialWeaponDamage +
+    expect(system.calculateWeaponDamage(initialWeaponDamage)).toBe(
+      initialWeaponDamage +
         equipmentConfig.sword.weaponDamageBonus,
     )
   })

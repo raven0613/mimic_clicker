@@ -1,7 +1,6 @@
 import { animationConfig } from '../../configs/animationConfig'
 import type { AttachedCardRarity } from '../../configs/attachedCardConfig'
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
-import { combatConfig } from '../../configs/combatConfig'
 import {
   equipmentConfig,
   equipmentDefinitions,
@@ -13,6 +12,7 @@ import { roundConfig } from '../../configs/roundConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
 import type { JackpotOutcome, MimicId, RandomSource } from '../../types/game'
 import { evaluateWeaponDamageInterval } from '../game/damage/weaponDamageInterval'
+import { getInitialWeaponDefinition } from '../progression/weaponProgression'
 import { selectVisibleEquipmentDrops } from '../game/equipment/equipmentDropRules'
 import {
   EquipmentState,
@@ -113,7 +113,7 @@ export function simulateEquipmentCombatRound(
   input: SimulateEquipmentCombatRoundInput,
 ): RoundEquipmentMetrics {
   const baseWeaponDamage =
-    input.baseWeaponDamage ?? combatConfig.initialWeaponDamage
+    input.baseWeaponDamage ?? getInitialWeaponDefinition().baseDamage
   const state = createInitialEquipmentState(
     input.initialLoadout,
     input.equipmentSlotCount ?? equipmentConfig.initialSlotCount,

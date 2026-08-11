@@ -1,5 +1,5 @@
 export const animationConfig = {
-  manualHitEffect: {
+  weaponHitEffect: {
     animationDurationMs: 180,
     displayScale: 0.5,
     spriteSheet: {
@@ -44,7 +44,7 @@ export const animationConfig = {
       minimumLaunchAngleRadians: -Math.PI * 0.72,
       maximumLaunchAngleRadians: -Math.PI * 0.28,
       minimumSpeedPixelsPerSecond: 300,
-      maximumSpeedPixelsPerSecond: 450,
+      maximumSpeedPixelsPerSecond: 500,
       spawnJitterPixels: 8,
       gravityPixelsPerSecondSquared: 1500,
       maximumRotationSpeedRadiansPerSecond: 2.6,

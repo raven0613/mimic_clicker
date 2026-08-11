@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 
 import './App.scss'
 import { backpackConfig } from './configs/backpackConfig'
+import type { WeaponId } from './configs/weaponConfig'
 import { GameCanvas } from './components/game/GameCanvas'
 import { GameHud } from './components/hud/GameHud'
 import { MainMenu } from './components/overlay/MainMenu'
@@ -13,10 +14,16 @@ import { PixiGameRuntime } from './service/game/PixiGameRuntime'
 import type { MoveEquipmentCommand } from './service/game/equipment/equipmentState'
 import { acknowledgeUnlock, completeRound, getAvailableMimicIds } from './service/progression/progression'
 import {
-  createPermanentUpgradeSnapshot,
   purchasePermanentUpgrade,
   type PermanentUpgradePurchaseStatus,
 } from './service/progression/permanentUpgrades'
+import {
+  createRoundProgressionSnapshot,
+  equipWeapon,
+  purchaseWeapon,
+  type WeaponEquipStatus,
+  type WeaponPurchaseStatus,
+} from './service/progression/weaponProgression'
 import { decodeProgress, encodeProgress } from './service/save/saveCodec'
 import { createSaveRepository } from './service/save/saveRepository'
 import { gameFlowMachine } from './state/gameFlowMachine'
@@ -24,8 +31,8 @@ import { useGameStore } from './store/gameStore'
 import type {
   EquipmentCollectionTargets,
   PermanentUpgradeId,
-  PermanentUpgradeSnapshot,
   ProgressData,
+  RoundProgressionSnapshot,
   RoundResult,
   Vector2,
 } from './types/game'
@@ -37,12 +44,14 @@ function App() {
   const [flow, send] = useMachine(gameFlowMachine)
   const [runtime, setRuntime] = useState<PixiGameRuntime | null>(null)
   const [loadedProgress, setLoadedProgress] = useState<ProgressData | null>(null)
-  const [roundUpgrades, setRoundUpgrades] =
-    useState<PermanentUpgradeSnapshot | null>(null)
+  const [roundProgression, setRoundProgression] =
+    useState<RoundProgressionSnapshot | null>(null)
   const [unlockSaveBusy, setUnlockSaveBusy] = useState(false)
+  const [growthSaveBusy, setGrowthSaveBusy] = useState(false)
   const [failedOperation, setFailedOperation] = useState<FailedOperation>('boot')
   const bootSent = useRef(false)
   const settlementWriteInProgress = useRef(false)
+  const growthWriteInProgress = useRef(false)
   const progress = useGameStore((state) => state.progress)
   const hud = useGameStore((state) => state.hud)
   const equipment = useGameStore((state) => state.equipment)
@@ -123,11 +132,11 @@ function App() {
   }, [flow, hydrateProgress, latestRoundResult, progress, runtime, send])
 
   function startRound() {
-    if (!runtime) return
-    const upgrades = createPermanentUpgradeSnapshot(progress.permanentUpgrades)
+    if (!runtime || growthWriteInProgress.current) return
+    const progression = createRoundProgressionSnapshot(progress)
     setLatestRoundResult(null)
-    setRoundUpgrades(upgrades)
-    runtime.startRound(getAvailableMimicIds(progress), upgrades)
+    setRoundProgression(progression)
+    runtime.startRound(getAvailableMimicIds(progress), progression)
     send({ type: 'START_ROUND' })
   }
 
@@ -136,12 +145,54 @@ function App() {
   ): Promise<PermanentUpgradePurchaseStatus> {
     const purchase = purchasePermanentUpgrade(progress, upgradeId)
     if (purchase.status !== 'purchased') return purchase.status
+    await saveGrowthProgress(
+      purchase.progress,
+      `無法保存永久升級「${upgradeId}」。`,
+    )
+    return purchase.status
+  }
+
+  async function purchaseMainWeapon(
+    weaponId: WeaponId,
+  ): Promise<WeaponPurchaseStatus> {
+    const purchase = purchaseWeapon(progress, weaponId)
+    if (purchase.status !== 'purchased') return purchase.status
+    await saveGrowthProgress(
+      purchase.progress,
+      `無法保存主武器購買「${weaponId}」。`,
+    )
+    return purchase.status
+  }
+
+  async function equipMainWeapon(
+    weaponId: WeaponId,
+  ): Promise<WeaponEquipStatus> {
+    const equipmentResult = equipWeapon(progress, weaponId)
+    if (equipmentResult.status !== 'equipped') return equipmentResult.status
+    await saveGrowthProgress(
+      equipmentResult.progress,
+      `無法保存主武器切換「${weaponId}」。`,
+    )
+    return equipmentResult.status
+  }
+
+  async function saveGrowthProgress(
+    nextProgress: ProgressData,
+    errorMessage: string,
+  ): Promise<void> {
+    if (growthWriteInProgress.current) {
+      throw new Error('另一筆局外成長正在保存，請稍後再試。')
+    }
+    growthWriteInProgress.current = true
+    setGrowthSaveBusy(true)
     try {
-      await saveRepository.replace(purchase.progress)
-      hydrateProgress(purchase.progress)
-      return purchase.status
+      await saveRepository.replace(nextProgress)
+      hydrateProgress(nextProgress)
     } catch (error) {
-      throw new Error(`無法保存永久升級「${upgradeId}」。`, { cause: error })
+      throw new Error(errorMessage, { cause: error })
+    } finally {
+      growthWriteInProgress.current = false
+      setGrowthSaveBusy(false)
     }
   }
 
@@ -256,7 +307,7 @@ function App() {
         onRoundCompleted={handleRoundCompleted}
       />
 
-      {flow.matches('playing') && roundUpgrades && (
+      {flow.matches('playing') && roundProgression && (
         <GameHud
           hud={hud}
           equipment={equipment}
@@ -278,11 +329,14 @@ function App() {
       {flow.matches('ready') && (
         <MainMenu
           progress={progress}
+          growthSaveBusy={growthSaveBusy}
           onStart={startRound}
           onExport={() => encodeProgress(progress)}
           onImport={importProgress}
           onReset={resetProgress}
           onPurchaseUpgrade={purchaseUpgrade}
+          onPurchaseWeapon={purchaseMainWeapon}
+          onEquipWeapon={equipMainWeapon}
         />
       )}
       {flow.matches('savingSettlement') && (

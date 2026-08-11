@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { combatConfig } from '../../../configs/combatConfig'
 import { effectCardConfig } from '../../../configs/effectCardConfig'
+import { getInitialWeaponDefinition } from '../../progression/weaponProgression'
 import {
   advanceEffectCardWindup,
   calculateInitialMeteoriteDamage,
@@ -12,21 +12,21 @@ import {
 describe('effect card rules', () => {
   it('derives thunder damage from the initial weapon damage', () => {
     expect(calculateInitialThunderDamage()).toBe(
-      combatConfig.initialWeaponDamage *
+      getInitialWeaponDefinition().baseDamage *
         effectCardConfig.thunder.initialWeaponDamageMultiplier,
     )
   })
 
   it('derives meteorite damage from the initial weapon damage', () => {
     expect(calculateInitialMeteoriteDamage()).toBe(
-      combatConfig.initialWeaponDamage *
+      getInitialWeaponDefinition().baseDamage *
         effectCardConfig.meteorite.initialWeaponDamageMultiplier,
     )
   })
 
   it('derives tornado damage from the initial weapon damage', () => {
     expect(calculateInitialTornadoDamage()).toBe(
-      combatConfig.initialWeaponDamage *
+      getInitialWeaponDefinition().baseDamage *
         effectCardConfig.tornado.initialWeaponDamageMultiplier,
     )
   })

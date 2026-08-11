@@ -1,5 +1,4 @@
 import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
-import { combatConfig } from '../../configs/combatConfig'
 import { effectCardConfig } from '../../configs/effectCardConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import { roundConfig } from '../../configs/roundConfig'
@@ -32,6 +31,7 @@ import { ClearRefillBalanceTracker } from './clearRefillBalanceSimulation'
 import { EffectChainBalanceTracker } from './effectChainBalanceSimulation'
 import { RingBalanceTracker } from './ringBalanceSimulation'
 import { createSimulatedMeteoriteImpacts } from './meteoriteBalanceSimulation'
+import { getInitialWeaponDefinition } from '../progression/weaponProgression'
 import type {
   BalanceCombatMimic,
   EffectCardCombatMetrics,
@@ -59,7 +59,7 @@ export function simulateEffectCardCombat(
   accuracy: number,
   random: RandomSource,
   scheduledCardEvents: readonly SimulatedEffectCardEvent[] = [],
-  weaponDamage: number = combatConfig.initialWeaponDamage,
+  weaponDamage: number = getInitialWeaponDefinition().baseDamage,
   ringCount = 0,
 ): EffectCardCombatMetrics {
   const mimics: SimulatedCombatMimic[] = sourceMimics.map((mimic) => ({

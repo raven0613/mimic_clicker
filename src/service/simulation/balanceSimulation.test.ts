@@ -4,6 +4,7 @@ import { balanceSimulationConfig } from '../../configs/balanceSimulationConfig'
 import { effectCardConfig } from '../../configs/effectCardConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import { spawnConfig } from '../../configs/spawnConfig'
+import { weaponConfig } from '../../configs/weaponConfig'
 import {
   calculateInitialMeteoriteDamage,
 } from '../game/effectCards/effectCardRules'
@@ -34,6 +35,7 @@ describe('fixed-seed balance simulation', () => {
     console.info(report.summary)
     const baseCaseCount =
       Object.keys(stagePools).length *
+      weaponConfig.definitions.length *
       Object.keys(balanceSimulationConfig.playerClickRatesPerSecond).length *
       Object.keys(balanceSimulationConfig.accuracyRates).length *
       balanceSimulationConfig.jackpotCases.length *
@@ -41,6 +43,7 @@ describe('fixed-seed balance simulation', () => {
       balanceSimulationConfig.seeds.length
     const additionalManagementCaseCount =
       Object.keys(stagePools).length *
+      weaponConfig.definitions.length *
       balanceSimulationConfig.jackpotCases.length *
       Object.keys(balanceSimulationConfig.equipmentLoadouts).length *
       balanceSimulationConfig.seeds.length *
@@ -100,6 +103,71 @@ describe('fixed-seed balance simulation', () => {
     expect(report.stageAverageCombatIncome.allMimics).toBeGreaterThan(
       report.stageAverageCombatIncome.normalRare1,
     )
+    for (const stage of Object.keys(stagePools) as Array<keyof typeof stagePools>) {
+      for (let index = 1; index < weaponConfig.definitions.length; index += 1) {
+        const previous = report.weaponMetrics.byWeapon[
+          weaponConfig.definitions[index - 1].id
+        ][stage]
+        const current = report.weaponMetrics.byWeapon[
+          weaponConfig.definitions[index].id
+        ][stage]
+        expect(current.averageDefeatedMimics).toBeGreaterThanOrEqual(
+          previous.averageDefeatedMimics,
+        )
+        expect(current.averageCombatIncome).toBeGreaterThan(
+          previous.averageCombatIncome,
+        )
+        expect(current.combatIncomeIncreaseFromPreviousWeapon).toBeGreaterThanOrEqual(
+          balanceSimulationConfig.targets.weapons.combatIncomeIncreaseRatio
+            .minimum,
+        )
+        expect(current.combatIncomeIncreaseFromPreviousWeapon).toBeLessThanOrEqual(
+          balanceSimulationConfig.targets.weapons.combatIncomeIncreaseRatio
+            .maximum,
+        )
+      }
+    }
+    for (const weapon of weaponConfig.definitions) {
+      const allPool = report.weaponMetrics.byWeapon[weapon.id].allMimics
+      expect(
+        Object.values(allPool.generatedShareByMimic).reduce(
+          (total, share) => total + share,
+          0,
+        ),
+      ).toBeCloseTo(1)
+      for (const mimicId of stagePools.allMimics) {
+        expect(allPool.averageGeneratedByMimic[mimicId]).toBeGreaterThan(0)
+        expect(allPool.averageDefeatedByMimic[mimicId]).toBeGreaterThan(0)
+        const defeatTime =
+          report.weaponMetrics.defeatTimeMsByWeapon[weapon.id][mimicId]
+        expect(defeatTime.requiredHits).toBe(
+          Math.ceil(mimicConfigs[mimicId].maximumHealth / weapon.baseDamage),
+        )
+        expect(defeatTime.p90).toBeGreaterThanOrEqual(defeatTime.average)
+      }
+    }
+    for (const milestone of report.weaponMetrics.milestoneEconomy) {
+      expect(milestone.oldWeaponHitCount).toBe(
+        balanceSimulationConfig.targets.weapons.hitCountMilestones.find(
+          ({ mimicId }) => mimicId === milestone.mimicId,
+        )?.oldWeaponHitCount,
+      )
+      expect(milestone.latestTargetRewardMultiplier).toBeGreaterThan(1)
+      expect(milestone.oldWeaponLatestTargetRewardPerHit).toBeGreaterThan(
+        milestone.oldWeaponMasteredTargetRewardPerHit,
+      )
+      const incomeIncrease = report.weaponMetrics.byWeapon[
+        milestone.newWeaponId
+      ][milestone.incomeStage].combatIncomeIncreaseFromPreviousWeapon
+      expect(incomeIncrease).toBeGreaterThanOrEqual(
+        balanceSimulationConfig.targets.weapons
+          .milestoneCombatIncomeIncreaseRatio.minimum,
+      )
+      expect(incomeIncrease).toBeLessThanOrEqual(
+        balanceSimulationConfig.targets.weapons
+          .milestoneCombatIncomeIncreaseRatio.maximum,
+      )
+    }
     for (const stage of Object.keys(
       report.stageAverageTotalIncome,
     ) as Array<keyof typeof report.stageAverageTotalIncome>) {

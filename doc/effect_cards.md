@@ -114,7 +114,7 @@
 - 初始每張落雷卡發動 `1` 道落雷。
 - 每道落雷的初始傷害為初始武器初始攻擊力的 `3` 倍。
 - 初始傷害由初始武器攻擊力與落雷倍率推導，不另外保存可能互相矛盾的固定傷害數字。
-- Sword、自動攻擊間隔與未來階段性主武器內容不會自動放大落雷；落雷未來使用自己的效果卡強化規則。
+- Sword、自動攻擊間隔與目前裝備的階段主武器不會自動放大落雷；落雷未來使用自己的效果卡強化規則。
 - 被選中的目標保證受到該道落雷傷害。
 - 落雷傷害集中在底端命中點附近，不是整條 `88 × 256` 雷柱都帶有傷害。
 - 初始攻擊範圍是以底端命中點為中心的 `88 × 88` 正方形，向左右及上下各延伸 `44 px`；正方形邊長直接由單格 frame 寬度 `88 px` 推導，不另存一份可能互相矛盾的固定數值。
@@ -198,7 +198,7 @@
 ### 8.3 傷害範圍與間隔
 
 - 只有 `run` 階段可以造成傷害；進入 `run` 後第一次與有效目標重疊時立即結算，不必先等待一個傷害間隔。`start`、`end` 與主倒數結束後都不做命中判定。
-- 龍捲風初始傷害由初始武器攻擊力乘上 `initialWeaponDamageMultiplier` 推導，不保存可能互相矛盾的固定傷害值；目前規劃的初始倍率與之後調整皆以 config 為準，Sword、自動攻擊間隔與未來階段性主武器內容不會自動放大龍捲風。
+- 龍捲風初始傷害由初始武器攻擊力乘上 `initialWeaponDamageMultiplier` 推導，不保存可能互相矛盾的固定傷害值；目前規劃的初始倍率與之後調整皆以 config 為準，Sword、自動攻擊間隔與目前裝備的階段主武器不會自動放大龍捲風。
 - 令顯示比例為 `S = tornado.displayScale`、傷害高度比例為 `R = tornado.damageAreaHeightRatio`，則傷害矩形寬度 `W = 120 × S`、高度 `H = 265 × S × R`。矩形以龍捲風底部中央 anchor 為底線，左右各延伸 `W ÷ 2` 並向上延伸 `H`。
 - `damageAreaHeightRatio` 必須大於 `0`；調整 `displayScale` 會同步改變視覺尺寸與傷害矩形，調整高度比例只改變由同一底線向上延伸的傷害高度，兩者都不得平移位置 anchor。
 - 傷害矩形與既有有效目標碰撞範圍重疊時才算命中；不得使用 Pixi `getBounds()` 或透明像素內容作為戰鬥真相，幾何計算必須放在可獨立測試的純邏輯中。
@@ -208,7 +208,7 @@
 
 ## 9. config 權責
 
-執行中的調整數值以 [`effectCardConfig.ts`](../src/configs/effectCardConfig.ts)、[`attachedCardConfig.ts`](../src/configs/attachedCardConfig.ts) 與 [`animationConfig.ts`](../src/configs/animationConfig.ts) 為唯一真相。規格只固定欄位責任、公式、合法範圍與相互關係；單純微調 config 數值不需要同步改寫規格，但凡會影響戰鬥結果的調整仍須依驗證閘門重跑完整矩陣並更新當前平衡報告。新報告直接取代舊報告，不保留過時 config 快照。
+執行中的效果調整數值以 [`effectCardConfig.ts`](../src/configs/effectCardConfig.ts)、[`attachedCardConfig.ts`](../src/configs/attachedCardConfig.ts) 與 [`animationConfig.ts`](../src/configs/animationConfig.ts) 為唯一真相；各效果的初始武器基準則由[主武器商店規格](./weapon_shop.md)定義的 `weaponConfig.initialWeaponId` 對應 definition 提供。規格只固定欄位責任、公式、合法範圍與相互關係；單純微調 config 數值不需要同步改寫規格，但凡會影響戰鬥結果的調整仍須依驗證閘門重跑完整矩陣並更新當前平衡報告。新報告直接取代舊報告，不保留過時 config 快照。
 
 初版至少提供下列具名設定：
 

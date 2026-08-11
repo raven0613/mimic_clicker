@@ -1,11 +1,10 @@
 import { Application, Container, type Ticker } from 'pixi.js'
-
 import { combatConfig } from '../../configs/combatConfig'
 import { interfaceConfig } from '../../configs/interfaceConfig'
 import { mimicConfigs } from '../../configs/mimicConfigs'
 import { roundConfig } from '../../configs/roundConfig'
 import { spawnConfig } from '../../configs/spawnConfig'
-import type { EquipmentCollectionTargets, JackpotOutcome, MimicId, PermanentUpgradeSnapshot, RandomSource } from '../../types/game'
+import type { EquipmentCollectionTargets, JackpotOutcome, MimicId, RandomSource, RoundProgressionSnapshot } from '../../types/game'
 import { calculateJackpotReward } from '../progression/progression'
 import { calculateEquipmentSale } from '../settlement/equipmentSale'
 import { createRoundResult } from '../settlement/roundSettlement'
@@ -26,7 +25,6 @@ import { updateRuntimeEntityVisual } from './runtimeMovement'
 import { RuntimeEffectSystems } from './RuntimeEffectSystems'
 import type { LoadedMimicTextures, RuntimeCallbacks, RuntimeMimicEntity, RuntimeMoveEquipmentResult } from './runtimeTypes'
 import { shouldAdvanceRuntime, type RuntimeUpdateMode } from './runtimeUpdateGate'
-
 type RuntimeDamageSource = 'automatic' | 'manualWeapon'
 export class PixiGameRuntime {
   private readonly host: HTMLElement
@@ -58,7 +56,6 @@ export class PixiGameRuntime {
   private hudSnapshotElapsedMs = 0
   private nextRewardEventId = 1
   private roundEquipmentSale = calculateEquipmentSale([])
-
   public constructor(
     host: HTMLElement,
     callbacks: RuntimeCallbacks,
@@ -73,10 +70,9 @@ export class PixiGameRuntime {
       getEquipment: () => this.effectSystems?.equipment ?? null,
       damageTarget: (entity, damage, source) =>
         this.damageEntity(entity, damage, source === 'manual' ? 'manualWeapon' : 'automatic'),
-      addManualHitEffect: (position) => this.effectSystems?.addManualHit(position),
+      addWeaponHitEffect: (position, tintColor) => this.effectSystems?.addWeaponHit(position, tintColor),
     })
   }
-
   public async initialize(): Promise<void> {
     await this.app.init({
       resizeTo: this.host,
@@ -102,7 +98,7 @@ export class PixiGameRuntime {
       attachedCardTextures: assets.attachedCards,
       random: this.random,
       onAttack: (entity, position) => this.weaponAttacks.attackManual(entity, position),
-      onHoverChanged: (entity, hovered) => this.weaponAttacks.setHovered(entity, hovered),
+      onHoverChanged: (entity, pointerPosition) => this.weaponAttacks.setHoverPosition(entity, pointerPosition),
       onSpawn: (entity) => {
         this.entities.push(entity)
         this.fieldLayer.addChild(entity.container)
@@ -143,14 +139,17 @@ export class PixiGameRuntime {
     this.app.ticker.add(this.update)
   }
 
-  public startRound(mimicPool: MimicId[], upgrades: PermanentUpgradeSnapshot): void {
+  public startRound(
+    mimicPool: MimicId[],
+    progression: RoundProgressionSnapshot,
+  ): void {
     if (!this.textures || !this.attachedCardTextures || !this.mimicSpawner) {
       throw new Error('Cannot start a round before PixiJS assets are loaded')
     }
     this.clearScene()
     this.gameplayPaused = false
-    this.weaponAttacks.startRound(upgrades)
-    this.effectSystems?.equipment.startRound(upgrades.equipmentSlotCount)
+    this.weaponAttacks.startRound(progression)
+    this.effectSystems?.equipment.startRound(progression.equipmentSlotCount)
     this.mimicPool = [...mimicPool]
     this.mainRemainingMs = roundConfig.durationMs
     this.roundElapsedMs = 0
@@ -237,7 +236,7 @@ export class PixiGameRuntime {
         entities: this.entities,
         damageTarget: (target, damage) =>
           this.damageEntity(target, damage, 'automatic'),
-        addHitEffect: (position, tintColor) => this.effectSystems?.addManualHit(position, tintColor),
+        addHitEffect: (position, tintColor) => this.effectSystems?.addWeaponHit(position, tintColor),
       })
     }
     if (!this.roundEnding) {

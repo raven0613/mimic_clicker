@@ -8,7 +8,7 @@ import { createHorizontalSpriteSheetFrameRectangles } from './horizontalSpriteSh
 describe('horizontal sprite sheet slicing', () => {
   it.each([
     ['coin reward', coinRewardAnimationConfig.spriteSheet],
-    ['manual hit', animationConfig.manualHitEffect.spriteSheet],
+    ['weapon hit', animationConfig.weaponHitEffect.spriteSheet],
     ['thunder', effectCardConfig.thunder.spriteSheet],
     ['meteorite', effectCardConfig.meteorite.spriteSheet],
     ['explosion', effectCardConfig.meteorite.explosionSpriteSheet],

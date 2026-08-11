@@ -10,7 +10,7 @@ import {
 describe('sprite-sheet animation timing', () => {
   it('shows every configured frame and completes exactly at total duration', () => {
     const { animationDurationMs: durationMs, spriteSheet } =
-      animationConfig.manualHitEffect
+      animationConfig.weaponHitEffect
     const frameCount = spriteSheet.frameCount
 
     expect(advanceOneShotAnimation(0, 0, durationMs, frameCount)).toEqual({
